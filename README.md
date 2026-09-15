@@ -3,7 +3,7 @@
 Public, reproducible Synapse image for TeleCrypt.
 
 Current TeleCrypt project facts and architecture decisions are maintained only in the canonical
-[`llms.txt`](https://telecrypt-io.github.io/llms-authority/llms.txt); this README documents the image build and release.
+[`llms.txt`](https://www.telecrypt.io/llms.txt); this README documents the image build and release.
 
 ```text
 official Synapse release

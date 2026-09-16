@@ -25,7 +25,7 @@ class ProvenanceTests(unittest.TestCase):
         unsafe_link: bool = False,
         second_root: bool = False,
     ) -> None:
-        root = f"TeleCrypt-io-synapse-{commit[:7]}"
+        root = f"TeleCrypt-io-fork-synapse-{commit[:7]}"
         with tarfile.open(path, mode="w:gz") as archive:
             for name in (f"{root}/", f"{root}/synapse/"):
                 member = tarfile.TarInfo(name)
@@ -77,7 +77,7 @@ class ProvenanceTests(unittest.TestCase):
         commit = "a" * 40
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "synapse.tar.gz"
-            root = f"TeleCrypt-io-synapse-{commit[:7]}"
+            root = f"TeleCrypt-io-fork-synapse-{commit[:7]}"
             self._synapse_archive(path, commit)
             prepare_inputs.validate_synapse_fork_archive(path, root)
             self._synapse_archive(path, commit, unsafe_link=True)
@@ -89,7 +89,7 @@ class ProvenanceTests(unittest.TestCase):
             self._synapse_archive(path, commit)
             with self.assertRaises(SystemExit):
                 prepare_inputs.validate_synapse_fork_archive(
-                    path, "TeleCrypt-io-synapse-bbbbbbb"
+                    path, "TeleCrypt-io-fork-synapse-bbbbbbb"
                 )
 
     def test_archive_names_use_locked_releases(self) -> None:

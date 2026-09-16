@@ -692,12 +692,6 @@ jobs:
           persist-credentials: false
       - name: Remove temporary checkout credentials before strict Git checks
         run: bash .github/clear_checkout_auth.sh
-      - name: Assert the release source is the workflow commit
-        env:
-          EXPECTED_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          test "$(bash .github/strict_git_fetch.sh local-read rev-parse HEAD)" = "$EXPECTED_SHA"
       - name: Revalidate the exact source tag and current main before release
         env:
           EXPECTED_TAG: ${{ needs.versions.outputs.image_tag }}

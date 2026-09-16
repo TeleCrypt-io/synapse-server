@@ -3,14 +3,15 @@
 This project packages, but does not modify, the following third-party components:
 
 - [Synapse](https://github.com/element-hq/synapse), supplied by its official container image at
-  the exact version recorded in `versions.env` and licensed by Element under its own terms.
+  the exact version selected by the image workflow and licensed by Element under its own terms.
 - The provider's compatible build and base-image dependencies (including setuptools, psycopg2,
   PyYAML, Twisted, python-dateutil, six, and urllib3) remain governed by the exact Synapse base
   image's notices; this repository does not download replacement copies of those packages.
 - [synapse-s3-storage-provider](https://github.com/TeleCrypt-io/fork-synapse-s3-storage-provider),
-  Apache License 2.0, pinned to the exact released version in `versions.env`.
+  Apache License 2.0, selected from the exact fork release in `provenance.lock`.
 - [control-plane tier controller](https://github.com/TeleCrypt-io/control-plane), TeleCrypt BUSL-1.1
-  code, installed from the exact public release recorded in `versions.env`.
+  code, installed from the exact published policy release selected by the image workflow and
+  retained in the image metadata.
 - [boto3](https://pypi.org/project/boto3/1.43.78/), Apache-2.0, exact wheel recorded in
   `s3-provider.lock`.
 - [botocore](https://pypi.org/project/botocore/1.43.78/), Apache-2.0, exact wheel recorded in

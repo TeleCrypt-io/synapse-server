@@ -28,7 +28,7 @@ def expected(name: str) -> str:
 expected_versions = {
     "matrix-synapse": expected("EXPECTED_SYNAPSE_VERSION"),
     "synapse-s3-storage-provider": expected("EXPECTED_S3_PROVIDER_VERSION"),
-    "telecrypt-tier-controller": expected("EXPECTED_CONTROLPLANE_RELEASE"),
+    "telecrypt-tier-controller": expected("EXPECTED_POLICY_RELEASE"),
 }
 actual_versions = {name: metadata.version(name) for name in expected_versions}
 require(actual_versions == expected_versions, (expected_versions, actual_versions))

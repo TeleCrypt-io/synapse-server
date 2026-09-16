@@ -39,15 +39,16 @@ GITHUB_API_VERSION = "2026-03-10"
 GITHUB_API_ROOT = "https://api.github.com"
 GITHUB_API_ACCEPT = "application/vnd.github+json"
 BINARY_ACCEPT = "application/octet-stream"
-CONTROLPLANE_REPOSITORY = "TeleCrypt-io/control-plane"
+POLICY_REPOSITORY = "TeleCrypt-io/control-plane"
 SYNAPSE_FORK_REPOSITORY = "TeleCrypt-io/fork-synapse"
 S3_PROVIDER_FORK_REPOSITORY = "TeleCrypt-io/fork-synapse-s3-storage-provider"
-CONTROLPLANE_IMAGE = "ghcr.io/telecrypt-io/controlplane"
+POLICY_IMAGE = "ghcr.io/telecrypt-io/controlplane"
 MAX_DIGEST_JSON_BYTES = 64 * 1024
 MAX_TOTAL_INPUT_BYTES = 256 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 4096
 MAX_ARCHIVE_NAME_BYTES = 4096
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
+MAX_POLICY_RELEASE_PAGES = 100
 BACKSLASH_CONFUSABLES = frozenset("\\\u2216\u29f5\ufe68\uff3c")
 ALLOWED_DOWNLOAD_HOSTS = frozenset(
     {
@@ -185,7 +186,7 @@ def read_response(response) -> bytes:
     return response.read()
 
 
-def fetch_github_api(repository: str, endpoint: str, label: str) -> dict:
+def fetch_github_api(repository: str, endpoint: str, label: str) -> object:
     url = f"{GITHUB_API_ROOT}/repos/{repository}/{endpoint}"
     validate_download_url(url, "api.github.com")
     request = urllib.request.Request(
@@ -239,17 +240,20 @@ def fetch_github_api(repository: str, endpoint: str, label: str) -> dict:
             f"{label} API metadata is not valid JSON: {type(exc).__name__}: {exc}"
             f"\nresponse body:\n{body}"
         )
-    if not isinstance(metadata, dict):
-        fail(f"{label} API metadata is not an object")
+    if not isinstance(metadata, (dict, list)):
+        fail(f"{label} API metadata is neither an object nor an array")
     return metadata
 
 
-def fetch_controlplane_api(endpoint: str) -> dict:
-    return fetch_github_api(CONTROLPLANE_REPOSITORY, endpoint, "Controlplane")
+def fetch_policy_api(endpoint: str) -> object:
+    return fetch_github_api(POLICY_REPOSITORY, endpoint, "policy")
 
 
 def fetch_fork_api(repository: str, endpoint: str) -> dict:
-    return fetch_github_api(repository, endpoint, "fork")
+    metadata = fetch_github_api(repository, endpoint, "fork")
+    if not isinstance(metadata, dict):
+        fail(f"fork API metadata is not an object: {repository} {endpoint}")
+    return metadata
 
 
 def fetch_fork_annotated_tag(repository: str, release: str, expected_commit: str) -> str:
@@ -288,17 +292,19 @@ def fetch_fork_annotated_tag(repository: str, release: str, expected_commit: str
     return annotated_tag_sha
 
 
-def fetch_controlplane_release(release: str) -> dict:
-    metadata = fetch_controlplane_api(f"releases/tags/{release}")
-    validate_controlplane_release(metadata, release)
+def fetch_policy_release(release: str) -> dict:
+    metadata = fetch_policy_api(f"releases/tags/{release}")
+    if not isinstance(metadata, dict):
+        fail(f"policy release metadata is not an object: {release}")
+    validate_policy_release(metadata, release)
     return metadata
 
 
-def validate_controlplane_release(metadata: dict, release: str) -> None:
-    expected_api_root = f"{GITHUB_API_ROOT}/repos/{CONTROLPLANE_REPOSITORY}/releases"
+def validate_policy_release(metadata: dict, release: str) -> None:
+    expected_api_root = f"{GITHUB_API_ROOT}/repos/{POLICY_REPOSITORY}/releases"
     expected_html_urls = {
-        f"https://github.com/{CONTROLPLANE_REPOSITORY}/releases/{release}",
-        f"https://github.com/{CONTROLPLANE_REPOSITORY}/releases/tag/{release}",
+        f"https://github.com/{POLICY_REPOSITORY}/releases/{release}",
+        f"https://github.com/{POLICY_REPOSITORY}/releases/tag/{release}",
     }
     if (
         metadata.get("tag_name") != release
@@ -316,43 +322,45 @@ def validate_controlplane_release(metadata: dict, release: str) -> None:
         or metadata.get("assets_url")
         != f"{expected_api_root}/{metadata.get('id')}/assets"
         or metadata.get("upload_url")
-        != f"https://uploads.github.com/repos/{CONTROLPLANE_REPOSITORY}/releases/{metadata.get('id')}/assets{{?name,label}}"
+        != f"https://uploads.github.com/repos/{POLICY_REPOSITORY}/releases/{metadata.get('id')}/assets{{?name,label}}"
         or metadata.get("tarball_url")
-        != f"https://api.github.com/repos/{CONTROLPLANE_REPOSITORY}/tarball/{release}"
+        != f"https://api.github.com/repos/{POLICY_REPOSITORY}/tarball/{release}"
         or metadata.get("zipball_url")
-        != f"https://api.github.com/repos/{CONTROLPLANE_REPOSITORY}/zipball/{release}"
+        != f"https://api.github.com/repos/{POLICY_REPOSITORY}/zipball/{release}"
     ):
-        fail("Controlplane release metadata is not the exact immutable release contract")
+        fail("policy release metadata is not the exact immutable release contract")
     def parse_timestamp(value: object, label: str) -> datetime.datetime:
         if not isinstance(value, str) or not RFC3339_RE.fullmatch(value):
-            fail(f"Controlplane {label} has no valid UTC timestamp")
+            fail(f"policy {label} has no valid UTC timestamp")
         try:
             parsed = datetime.datetime.fromisoformat(value[:-1] + "+00:00")
         except ValueError:
-            fail(f"Controlplane {label} has no valid UTC timestamp")
+            fail(f"policy {label} has no valid UTC timestamp")
         if parsed.tzinfo != datetime.timezone.utc:
-            fail(f"Controlplane {label} is not UTC")
+            fail(f"policy {label} is not UTC")
         return parsed
 
     created = parse_timestamp(metadata.get("created_at"), "release.created_at")
     published = parse_timestamp(metadata.get("published_at"), "release.published_at")
     if created > published:
-        fail("Controlplane release.created_at is after release.published_at")
+        fail("policy release.created_at is after release.published_at")
     assets = metadata.get("assets")
     if not isinstance(assets, list):
-        fail("Controlplane release assets are not a list")
+        fail("policy release assets are not a list")
     for asset in assets:
         if not isinstance(asset, dict):
-            fail("Controlplane release contains a malformed asset entry")
+            fail("policy release contains a malformed asset entry")
         asset_created = parse_timestamp(asset.get("created_at"), "asset.created_at")
         asset_updated = parse_timestamp(asset.get("updated_at"), "asset.updated_at")
         if not created <= asset_created <= asset_updated <= published:
-            fail("Controlplane release and asset timestamps are out of order")
+            fail("policy release and asset timestamps are out of order")
 
 
-def fetch_controlplane_annotated_tag(release: str) -> tuple[str, str]:
-    ref = fetch_controlplane_api(f"git/ref/tags/{release}")
-    api_root = f"{GITHUB_API_ROOT}/repos/{CONTROLPLANE_REPOSITORY}"
+def fetch_policy_annotated_tag(release: str) -> tuple[str, str]:
+    ref = fetch_policy_api(f"git/ref/tags/{release}")
+    if not isinstance(ref, dict):
+        fail("policy release tag metadata is not an object")
+    api_root = f"{GITHUB_API_ROOT}/repos/{POLICY_REPOSITORY}"
     ref_object = ref.get("object")
     if (
         ref.get("ref") != f"refs/tags/{release}"
@@ -361,26 +369,28 @@ def fetch_controlplane_annotated_tag(release: str) -> tuple[str, str]:
         or ref_object.get("type") != "tag"
         or ref_object.get("url") != f"{api_root}/git/tags/{ref_object.get('sha')}"
     ):
-        fail("Controlplane release tag is not an annotated tag ref")
+        fail("policy release tag is not an annotated tag ref")
     annotated_tag_sha = ref_object.get("sha")
     if not isinstance(annotated_tag_sha, str) or not GIT_SHA_RE.fullmatch(annotated_tag_sha):
-        fail("Controlplane annotated tag ref has no exact tag-object SHA")
+        fail("policy annotated tag ref has no exact tag-object SHA")
 
-    tag_object = fetch_controlplane_api(f"git/tags/{annotated_tag_sha}")
+    tag_object = fetch_policy_api(f"git/tags/{annotated_tag_sha}")
+    if not isinstance(tag_object, dict):
+        fail("policy annotated tag metadata is not an object")
     if (
         tag_object.get("sha") != annotated_tag_sha
         or tag_object.get("tag") != release
         or tag_object.get("url") != f"{api_root}/git/tags/{annotated_tag_sha}"
     ):
-        fail("Controlplane annotated tag object has an unexpected tag name")
+        fail("policy annotated tag object has an unexpected tag name")
     target = tag_object.get("object")
     if not isinstance(target, dict) or target.get("type") != "commit":
-        fail("Controlplane annotated tag does not peel directly to a commit")
+        fail("policy annotated tag does not peel directly to a commit")
     if target.get("url") != f"{api_root}/git/commits/{target.get('sha')}":
-        fail("Controlplane annotated tag commit URL is not exact")
+        fail("policy annotated tag commit URL is not exact")
     source_commit = target.get("sha")
     if not isinstance(source_commit, str) or not GIT_SHA_RE.fullmatch(source_commit):
-        fail("Controlplane annotated tag has no exact peeled source commit")
+        fail("policy annotated tag has no exact peeled source commit")
     return annotated_tag_sha, source_commit
 
 
@@ -416,35 +426,83 @@ def validate_fork_release(metadata: dict, repository: str, release: str) -> None
 
 def fetch_fork_release(repository: str, release: str, expected_commit: str) -> tuple[str, str]:
     metadata = fetch_github_api(repository, f"releases/tags/{release}", f"{repository} fork release")
+    if not isinstance(metadata, dict):
+        fail(f"{repository} fork release metadata is not an object")
     validate_fork_release(metadata, repository, release)
     annotated_tag_sha = fetch_fork_annotated_tag(repository, release, expected_commit)
     archive_root = f"{repository.replace('/', '-')}-{annotated_tag_sha[:7]}"
     return metadata["tarball_url"], archive_root
 
 
-def validate_controlplane_assets(
+def resolve_latest_policy() -> tuple[str, str]:
+    """Resolve one published stable policy release and its published wheel digest."""
+
+    candidates: list[str] = []
+    for page in range(1, MAX_POLICY_RELEASE_PAGES + 1):
+        releases = fetch_policy_api(f"releases?per_page=100&page={page}")
+        if not isinstance(releases, list) or len(releases) > 100:
+            fail("policy release listing is not a bounded array")
+        for release in releases:
+            if not isinstance(release, dict):
+                fail("policy release listing contains a malformed entry")
+            tag = release.get("tag_name")
+            if not isinstance(tag, str):
+                fail("policy release listing contains an entry without a tag")
+            if (
+                release.get("draft") is False
+                and release.get("prerelease") is False
+                and VERSION_RE.fullmatch(tag)
+            ):
+                candidates.append(tag)
+        if len(releases) < 100:
+            break
+    else:
+        fail(f"policy release listing exceeded {MAX_POLICY_RELEASE_PAGES} pages")
+
+    if not candidates:
+        fail("policy repository has no published stable release")
+    release = max(candidates, key=lambda value: tuple(int(part) for part in value.split(".")))
+    metadata = fetch_policy_release(release)
+    wheel = f"telecrypt_tier_controller-{release}-py3-none-any.whl"
+    assets = metadata.get("assets")
+    if not isinstance(assets, list):
+        fail("policy release assets are not a list")
+    wheel_assets = [
+        asset for asset in assets if isinstance(asset, dict) and asset.get("name") == wheel
+    ]
+    if len(wheel_assets) != 1:
+        fail("policy release does not contain exactly one expected wheel")
+    digest = wheel_assets[0].get("digest")
+    if not isinstance(digest, str) or not DIGEST_RE.fullmatch(digest):
+        fail("policy wheel does not contain an exact published SHA-256 digest")
+    wheel_sha256 = digest.removeprefix("sha256:")
+    validate_policy_assets(metadata, release, wheel, wheel_sha256)
+    return release, wheel_sha256
+
+
+def validate_policy_assets(
     metadata: dict, release: str, wheel: str, expected_wheel_sha256: str
 ) -> tuple[dict, dict]:
     assets = metadata.get("assets")
     if not isinstance(assets, list) or len(assets) != 2:
-        fail("Controlplane release must contain exactly the wheel and digest JSON assets")
+        fail("policy release must contain exactly the wheel and digest JSON assets")
     if any(not isinstance(asset, dict) for asset in assets):
-        fail("Controlplane release contains a malformed asset entry")
+        fail("policy release contains a malformed asset entry")
     names = [asset.get("name") for asset in assets]
     if any(not isinstance(name, str) for name in names) or len(set(names)) != 2:
-        fail("Controlplane release assets must have two unique names")
+        fail("policy release assets must have two unique names")
     expected_digest_name = f"controlplane-{release}.digest.json"
     if set(names) != {wheel, expected_digest_name}:
-        fail("Controlplane release assets differ from the exact wheel and digest JSON pair")
+        fail("policy release assets differ from the exact wheel and digest JSON pair")
 
     found = {asset["name"]: asset for asset in assets}
     wheel_asset = found[wheel]
     digest_asset = found[expected_digest_name]
     expected_wheel_url = (
-        f"https://github.com/{CONTROLPLANE_REPOSITORY}/releases/download/{release}/{wheel}"
+        f"https://github.com/{POLICY_REPOSITORY}/releases/download/{release}/{wheel}"
     )
     expected_digest_url = (
-        f"https://github.com/{CONTROLPLANE_REPOSITORY}/releases/download/{release}/"
+        f"https://github.com/{POLICY_REPOSITORY}/releases/download/{release}/"
         f"{expected_digest_name}"
     )
     for asset, expected_url, label in (
@@ -452,52 +510,52 @@ def validate_controlplane_assets(
         (digest_asset, expected_digest_url, "digest JSON"),
     ):
         if asset.get("state") != "uploaded":
-            fail(f"Controlplane {label} asset is not uploaded")
+            fail(f"policy {label} asset is not uploaded")
         if "label" not in asset or asset.get("label") != "":
-            fail(f"Controlplane {label} asset has an unexpected label")
+            fail(f"policy {label} asset has an unexpected label")
         if asset.get("browser_download_url") != expected_url:
-            fail(f"Controlplane {label} asset URL is not the exact release URL")
+            fail(f"policy {label} asset URL is not the exact release URL")
         if (
             not isinstance(asset.get("id"), int)
             or isinstance(asset["id"], bool)
             or asset["id"] <= 0
         ):
-            fail(f"Controlplane {label} asset has no valid immutable API ID")
+            fail(f"policy {label} asset has no valid immutable API ID")
         expected_api_url = (
-            f"{GITHUB_API_ROOT}/repos/{CONTROLPLANE_REPOSITORY}/releases/assets/{asset['id']}"
+            f"{GITHUB_API_ROOT}/repos/{POLICY_REPOSITORY}/releases/assets/{asset['id']}"
         )
         if asset.get("url") != expected_api_url:
-            fail(f"Controlplane {label} asset API URL is not exact")
+            fail(f"policy {label} asset API URL is not exact")
         if (
             not isinstance(asset.get("size"), int)
             or isinstance(asset["size"], bool)
             or asset["size"] <= 0
         ):
-            fail(f"Controlplane {label} asset has no valid size")
+            fail(f"policy {label} asset has no valid size")
         if not isinstance(asset.get("digest"), str) or not re.fullmatch(
             r"sha256:[0-9a-f]{64}", asset["digest"]
         ):
-            fail(f"Controlplane {label} asset has no exact SHA-256 API digest")
+            fail(f"policy {label} asset has no exact SHA-256 API digest")
     if wheel_asset["digest"] != f"sha256:{expected_wheel_sha256}":
-        fail("Controlplane wheel API digest differs from provenance.lock")
+        fail("policy wheel API digest differs from the resolved release metadata")
     if wheel_asset["size"] > MAX_FILE_BYTES:
-        fail("Controlplane wheel API size exceeds the image input limit")
+        fail("policy wheel API size exceeds the image input limit")
     if digest_asset["size"] > MAX_DIGEST_JSON_BYTES:
-        fail("Controlplane digest JSON API size exceeds its limit")
+        fail("policy digest JSON API size exceeds its limit")
     return wheel_asset, digest_asset
 
 
-def validate_controlplane_digest(
+def validate_policy_digest(
     path: Path, release: str, source_commit: str, annotated_tag_sha: str
 ) -> None:
     try:
         with path.open("rb") as stream:
             raw = stream.read()
             if len(raw) > MAX_DIGEST_JSON_BYTES:
-                raise ValueError("Controlplane digest JSON exceeds its declared artifact size")
+                raise ValueError("policy digest JSON exceeds its declared artifact size")
         payload = json.loads(raw)
     except (OSError, UnicodeDecodeError, ValueError) as exc:
-        fail(f"Controlplane digest JSON is not valid: {exc}")
+        fail(f"policy digest JSON is not valid: {exc}")
     expected_keys = {
         "schema_version",
         "image",
@@ -507,21 +565,21 @@ def validate_controlplane_digest(
         "digest",
     }
     if not isinstance(payload, dict) or set(payload) != expected_keys:
-        fail("Controlplane digest JSON does not have the exact reviewed schema")
+        fail("policy digest JSON does not have the exact reviewed schema")
     if raw != (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode():
-        fail("Controlplane digest JSON is not compact canonical JSON")
+        fail("policy digest JSON is not compact canonical JSON")
     if payload["schema_version"] != 1 or isinstance(payload["schema_version"], bool):
-        fail("Controlplane digest JSON has an unsupported schema version")
-    if payload["image"] != CONTROLPLANE_IMAGE:
-        fail("Controlplane digest JSON has an unexpected image")
+        fail("policy digest JSON has an unsupported schema version")
+    if payload["image"] != POLICY_IMAGE:
+        fail("policy digest JSON has an unexpected image")
     if payload["tag"] != release:
-        fail("Controlplane digest JSON has an unexpected release tag")
+        fail("policy digest JSON has an unexpected release tag")
     if payload["source_commit"] != source_commit:
-        fail("Controlplane digest JSON source commit differs from the annotated tag")
+        fail("policy digest JSON source commit differs from the annotated tag")
     if payload["annotated_tag_sha"] != annotated_tag_sha:
-        fail("Controlplane digest JSON tag object differs from the annotated tag ref")
+        fail("policy digest JSON tag object differs from the annotated tag ref")
     if not isinstance(payload["digest"], str) or not DIGEST_RE.fullmatch(payload["digest"]):
-        fail("Controlplane digest JSON does not contain an exact image digest")
+        fail("policy digest JSON does not contain an exact image digest")
 
 
 def validate_provider_build_contract(path: Path, expected_root: str) -> None:
@@ -669,26 +727,69 @@ def validate_synapse_fork_archive(path: Path, expected_root: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--resolve-policy",
+        action="store_true",
+        help="resolve the latest published stable policy release and print its metadata",
+    )
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--lock", type=Path, default=Path("s3-provider.lock"))
-    parser.add_argument("--s3-provider-version", required=True)
-    parser.add_argument("--synapse-fork-release", required=True)
-    parser.add_argument("--synapse-fork-commit", required=True)
-    parser.add_argument("--synapse-fork-archive-sha256", required=True)
-    parser.add_argument("--s3-provider-fork-release", required=True)
-    parser.add_argument("--s3-provider-fork-commit", required=True)
-    parser.add_argument("--s3-provider-fork-archive-sha256", required=True)
-    parser.add_argument("--controlplane-release", required=True)
-    parser.add_argument("--controlplane-wheel-sha256", required=True)
+    parser.add_argument("--s3-provider-version")
+    parser.add_argument("--synapse-fork-release")
+    parser.add_argument("--synapse-fork-commit")
+    parser.add_argument("--synapse-fork-archive-sha256")
+    parser.add_argument("--s3-provider-fork-release")
+    parser.add_argument("--s3-provider-fork-commit")
+    parser.add_argument("--s3-provider-fork-archive-sha256")
+    parser.add_argument("--policy-release")
+    parser.add_argument("--policy-wheel-sha256")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.resolve_policy:
+        if any(
+            value is not None
+            for value in (
+                args.output,
+                args.lock if args.lock != Path("s3-provider.lock") else None,
+                args.s3_provider_version,
+                args.synapse_fork_release,
+                args.synapse_fork_commit,
+                args.synapse_fork_archive_sha256,
+                args.s3_provider_fork_release,
+                args.s3_provider_fork_commit,
+                args.s3_provider_fork_archive_sha256,
+                args.policy_release,
+                args.policy_wheel_sha256,
+            )
+        ):
+            fail("--resolve-policy cannot be combined with image preparation options")
+        release, wheel_sha256 = resolve_latest_policy()
+        print(f"POLICY_RELEASE={release}")
+        print(f"POLICY_WHEEL_SHA256={wheel_sha256}")
+        return
+    if args.output is None:
+        fail("--output is required unless --resolve-policy is used")
+    if args.policy_release is None or args.policy_wheel_sha256 is None:
+        fail("--policy-release and --policy-wheel-sha256 are required")
+    required_options = {
+        "--s3-provider-version": args.s3_provider_version,
+        "--synapse-fork-release": args.synapse_fork_release,
+        "--synapse-fork-commit": args.synapse_fork_commit,
+        "--synapse-fork-archive-sha256": args.synapse_fork_archive_sha256,
+        "--s3-provider-fork-release": args.s3_provider_fork_release,
+        "--s3-provider-fork-commit": args.s3_provider_fork_commit,
+        "--s3-provider-fork-archive-sha256": args.s3_provider_fork_archive_sha256,
+    }
+    missing_options = [name for name, value in required_options.items() if value is None]
+    if missing_options:
+        fail(f"missing image preparation options: {', '.join(missing_options)}")
     if not VERSION_RE.fullmatch(args.s3_provider_version):
         fail("S3 provider version is not an exact numeric release")
-    if not VERSION_RE.fullmatch(args.controlplane_release):
-        fail("Controlplane release is not an exact numeric release")
+    if not VERSION_RE.fullmatch(args.policy_release):
+        fail("policy release is not an exact numeric release")
     for name, value in (
         ("Synapse fork release", args.synapse_fork_release),
         ("S3-provider fork release", args.s3_provider_fork_release),
@@ -704,7 +805,7 @@ def main() -> None:
     for name, value in (
         ("Synapse fork archive", args.synapse_fork_archive_sha256),
         ("S3-provider fork archive", args.s3_provider_fork_archive_sha256),
-        ("Controlplane wheel", args.controlplane_wheel_sha256),
+        ("Policy wheel", args.policy_wheel_sha256),
     ):
         if not HEX_RE.fullmatch(value):
             fail(f"{name} SHA-256 must be lowercase hexadecimal")
@@ -768,11 +869,11 @@ def main() -> None:
     )
     validate_provider_build_contract(args.output / archive, provider_archive_root)
 
-    wheel = f"telecrypt_tier_controller-{args.controlplane_release}-py3-none-any.whl"
-    metadata = fetch_controlplane_release(args.controlplane_release)
-    annotated_tag_sha, source_commit = fetch_controlplane_annotated_tag(args.controlplane_release)
-    wheel_asset, digest_asset = validate_controlplane_assets(
-        metadata, args.controlplane_release, wheel, args.controlplane_wheel_sha256
+    wheel = f"telecrypt_tier_controller-{args.policy_release}-py3-none-any.whl"
+    metadata = fetch_policy_release(args.policy_release)
+    annotated_tag_sha, source_commit = fetch_policy_annotated_tag(args.policy_release)
+    wheel_asset, digest_asset = validate_policy_assets(
+        metadata, args.policy_release, wheel, args.policy_wheel_sha256
     )
     digest_name = digest_asset["name"]
     download(
@@ -781,16 +882,16 @@ def main() -> None:
         digest_asset["digest"][len("sha256:") :],
         expected_size=digest_asset["size"],
     )
-    validate_controlplane_digest(
+    validate_policy_digest(
         args.output / digest_name,
-        args.controlplane_release,
+        args.policy_release,
         source_commit,
         annotated_tag_sha,
     )
     download(
         wheel_asset["browser_download_url"],
         args.output / wheel,
-        args.controlplane_wheel_sha256,
+        args.policy_wheel_sha256,
         expected_size=wheel_asset["size"],
     )
     total_input_bytes = 0

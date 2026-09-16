@@ -28,8 +28,8 @@ jobs:
     outputs:
       synapse_version: ${{ steps.version.outputs.SYNAPSE_VERSION }}
       s3_provider_version: ${{ steps.version.outputs.S3_PROVIDER_VERSION }}
-      controlplane_release: ${{ steps.version.outputs.CONTROLPLANE_RELEASE }}
-      controlplane_wheel_sha256: ${{ steps.provenance.outputs.CONTROLPLANE_WHEEL_SHA256 }}
+      policy_release: ${{ steps.policy.outputs.POLICY_RELEASE }}
+      policy_wheel_sha256: ${{ steps.policy.outputs.POLICY_WHEEL_SHA256 }}
       synapse_upstream_commit: ${{ steps.provenance.outputs.SYNAPSE_UPSTREAM_COMMIT }}
       synapse_fork_release: ${{ steps.provenance.outputs.SYNAPSE_FORK_RELEASE }}
       synapse_fork_commit: ${{ steps.provenance.outputs.SYNAPSE_FORK_COMMIT }}
@@ -72,7 +72,7 @@ jobs:
         run: PYTHONDONTWRITEBYTECODE=1 python3 .github/test_entrypoint.py
       - name: Run the offline provenance-lock tests
         run: PYTHONDONTWRITEBYTECODE=1 python3 .github/test_provenance.py
-      - name: Run the offline Controlplane release-boundary tests
+      - name: Run the offline policy release-boundary tests
         run: PYTHONDONTWRITEBYTECODE=1 python3 .github/test_prepare_inputs.py
       - name: Run the offline registry image verifier tests
         run: PYTHONDONTWRITEBYTECODE=1 python3 .github/test_verify_registry_image.py
@@ -99,6 +99,11 @@ jobs:
             *) echo "unsupported workflow ref: $GITHUB_REF" >&2; exit 2 ;;
           esac
           printf 'publish=%s\n' "$publish" >> "$GITHUB_OUTPUT"
+      - id: policy
+        name: Resolve the latest published stable policy release
+        run: |
+          set -euo pipefail
+          python3 .github/prepare_inputs.py --resolve-policy >> "$GITHUB_OUTPUT"
       - id: release
         name: Require the matching annotated release tag for publication
         if: steps.version.outputs.publish == 'true'
@@ -178,8 +183,8 @@ jobs:
           S3_PROVIDER_FORK_RELEASE: ${{ needs.versions.outputs.s3_provider_fork_release }}
           S3_PROVIDER_FORK_COMMIT: ${{ needs.versions.outputs.s3_provider_fork_commit }}
           S3_PROVIDER_FORK_ARCHIVE_SHA256: ${{ needs.versions.outputs.s3_provider_fork_archive_sha256 }}
-          CONTROLPLANE_RELEASE: ${{ needs.versions.outputs.controlplane_release }}
-          CONTROLPLANE_WHEEL_SHA256: ${{ needs.versions.outputs.controlplane_wheel_sha256 }}
+          POLICY_RELEASE: ${{ needs.versions.outputs.policy_release }}
+          POLICY_WHEEL_SHA256: ${{ needs.versions.outputs.policy_wheel_sha256 }}
         run: |
           set -euo pipefail
           timeout --signal=TERM --kill-after=5s 12m python3 .github/prepare_inputs.py \
@@ -191,8 +196,8 @@ jobs:
             --s3-provider-fork-release "$S3_PROVIDER_FORK_RELEASE" \
             --s3-provider-fork-commit "$S3_PROVIDER_FORK_COMMIT" \
             --s3-provider-fork-archive-sha256 "$S3_PROVIDER_FORK_ARCHIVE_SHA256" \
-            --controlplane-release "$CONTROLPLANE_RELEASE" \
-            --controlplane-wheel-sha256 "$CONTROLPLANE_WHEEL_SHA256"
+            --policy-release "$POLICY_RELEASE" \
+            --policy-wheel-sha256 "$POLICY_WHEEL_SHA256"
           python3 .github/validate_dependencies.py s3-provider.lock release-inputs/wheelhouse
       - id: base
         name: Verify the current upstream Synapse tag identity
@@ -275,11 +280,11 @@ jobs:
             S3_PROVIDER_FORK_RELEASE=${{ needs.versions.outputs.s3_provider_fork_release }}
             S3_PROVIDER_FORK_COMMIT=${{ needs.versions.outputs.s3_provider_fork_commit }}
             S3_PROVIDER_FORK_ARCHIVE_SHA256=${{ needs.versions.outputs.s3_provider_fork_archive_sha256 }}
-            CONTROLPLANE_RELEASE=${{ needs.versions.outputs.controlplane_release }}
-            CONTROLPLANE_WHEEL_SHA256=${{ needs.versions.outputs.controlplane_wheel_sha256 }}
+            POLICY_RELEASE=${{ needs.versions.outputs.policy_release }}
+            POLICY_WHEEL_SHA256=${{ needs.versions.outputs.policy_wheel_sha256 }}
           labels: |
             org.opencontainers.image.licenses=BUSL-1.1
-            org.opencontainers.image.source=https://github.com/TeleCrypt-io/telecrypt-synapse
+            org.opencontainers.image.source=https://github.com/TeleCrypt-io/synapse-server-container
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.versions.outputs.image_tag }}
             org.opencontainers.image.base.name=ghcr.io/element-hq/synapse
@@ -294,8 +299,8 @@ jobs:
             org.telecrypt.synapse.fork.release=${{ needs.versions.outputs.synapse_fork_release }}
             org.telecrypt.synapse.fork.commit=${{ needs.versions.outputs.synapse_fork_commit }}
             org.telecrypt.synapse.fork.archive.sha256=${{ needs.versions.outputs.synapse_fork_archive_sha256 }}
-            org.telecrypt.controlplane.release=${{ needs.versions.outputs.controlplane_release }}
-            org.telecrypt.controlplane.wheel.sha256=${{ needs.versions.outputs.controlplane_wheel_sha256 }}
+            org.telecrypt.controlplane.release=${{ needs.versions.outputs.policy_release }}
+            org.telecrypt.controlplane.wheel.sha256=${{ needs.versions.outputs.policy_wheel_sha256 }}
       - name: Prove the built image used the inspected upstream base
         env:
           BASE_REF: ghcr.io/element-hq/synapse:v${{ needs.versions.outputs.synapse_version }}
@@ -353,7 +358,7 @@ jobs:
           test -s "$IMAGE_ARCHIVE"
           test "$(stat -c '%s' "$IMAGE_ARCHIVE")" -le $((1024 * 1024 * 1024))
           "$GITHUB_WORKSPACE/.github/load_image.sh" "$IMAGE_ARCHIVE"
-          check_image_value source '{{index .Config.Labels "org.opencontainers.image.source"}}' "https://github.com/TeleCrypt-io/telecrypt-synapse"
+          check_image_value source '{{index .Config.Labels "org.opencontainers.image.source"}}' "https://github.com/TeleCrypt-io/synapse-server-container"
           check_image_value license '{{index .Config.Labels "org.opencontainers.image.licenses"}}' "BUSL-1.1"
           check_image_value version '{{index .Config.Labels "org.opencontainers.image.version"}}' "$IMAGE_TAG"
           check_image_value revision '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$GITHUB_SHA"
@@ -371,8 +376,8 @@ jobs:
           check_image_value synapse-fork-release '{{index .Config.Labels "org.telecrypt.synapse.fork.release"}}' "${{ needs.versions.outputs.synapse_fork_release }}"
           check_image_value synapse-fork-commit '{{index .Config.Labels "org.telecrypt.synapse.fork.commit"}}' "${{ needs.versions.outputs.synapse_fork_commit }}"
           check_image_value synapse-fork-archive '{{index .Config.Labels "org.telecrypt.synapse.fork.archive.sha256"}}' "${{ needs.versions.outputs.synapse_fork_archive_sha256 }}"
-          check_image_value controlplane-release '{{index .Config.Labels "org.telecrypt.controlplane.release"}}' "${{ needs.versions.outputs.controlplane_release }}"
-          check_image_value controlplane-wheel '{{index .Config.Labels "org.telecrypt.controlplane.wheel.sha256"}}' "${{ needs.versions.outputs.controlplane_wheel_sha256 }}"
+          check_image_value policy-release '{{index .Config.Labels "org.telecrypt.controlplane.release"}}' "${{ needs.versions.outputs.policy_release }}"
+          check_image_value policy-wheel '{{index .Config.Labels "org.telecrypt.controlplane.wheel.sha256"}}' "${{ needs.versions.outputs.policy_wheel_sha256 }}"
           ((image_contract_failures == 0))
           timeout --signal=TERM --kill-after=5s 2m docker run --rm --network none \
             -v "$GITHUB_WORKSPACE/.github/image_smoke.py:/tmp/image_smoke.py:ro" \
@@ -382,7 +387,7 @@ jobs:
             --env EXPECTED_SYNAPSE_FORK_COMMIT="${{ needs.versions.outputs.synapse_fork_commit }}" \
             --env EXPECTED_S3_PROVIDER_FORK_RELEASE="${{ needs.versions.outputs.s3_provider_fork_release }}" \
             --env EXPECTED_S3_PROVIDER_FORK_COMMIT="${{ needs.versions.outputs.s3_provider_fork_commit }}" \
-            --env EXPECTED_CONTROLPLANE_RELEASE="${{ needs.versions.outputs.controlplane_release }}" \
+            --env EXPECTED_POLICY_RELEASE="${{ needs.versions.outputs.policy_release }}" \
             --entrypoint python "$IMAGE:$IMAGE_TAG" /tmp/image_smoke.py
       - id: archive
         name: Create the tested image archive checksum

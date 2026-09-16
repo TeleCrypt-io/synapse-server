@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused offline tests for the Controlplane release boundary."""
+"""Focused offline tests for the policy release boundary."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def record(**changes: object) -> bytes:
     payload: dict[str, object] = {
         "annotated_tag_sha": ANNOTATED_TAG_SHA,
         "digest": "sha256:" + "c" * 64,
-        "image": prepare_inputs.CONTROLPLANE_IMAGE,
+        "image": prepare_inputs.POLICY_IMAGE,
         "schema_version": 1,
         "source_commit": SOURCE_COMMIT,
         "tag": RELEASE,
@@ -61,7 +61,9 @@ def synapse_record(tag: str = "1.159-tc3") -> bytes:
     return (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
-def asset(name: str, asset_id: int, size: int, digest: str) -> dict[str, object]:
+def asset(
+    name: str, asset_id: int, size: int, digest: str, release: str = RELEASE
+) -> dict[str, object]:
     return {
         "id": asset_id,
         "name": name,
@@ -75,31 +77,33 @@ def asset(name: str, asset_id: int, size: int, digest: str) -> dict[str, object]
             f"https://api.github.com/repos/TeleCrypt-io/control-plane/releases/assets/{asset_id}"
         ),
         "browser_download_url": (
-            f"https://github.com/TeleCrypt-io/control-plane/releases/download/{RELEASE}/{name}"
+            f"https://github.com/TeleCrypt-io/control-plane/releases/download/{release}/{name}"
         ),
     }
 
 
-def release_metadata() -> dict[str, object]:
+def release_metadata(release: str = RELEASE) -> dict[str, object]:
+    wheel = f"telecrypt_tier_controller-{release}-py3-none-any.whl"
+    digest_asset = f"controlplane-{release}.digest.json"
     return {
         "id": 42,
-        "tag_name": RELEASE,
-        "name": RELEASE,
+        "tag_name": release,
+        "name": release,
         "draft": False,
         "prerelease": False,
         "immutable": True,
-        "body": f"Exact Controlplane release {RELEASE}.",
+        "body": f"Exact Controlplane release {release}.",
         "created_at": "2026-08-22T00:00:00Z",
         "published_at": "2026-08-23T00:00:00Z",
         "url": "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/42",
         "assets_url": "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/42/assets",
         "upload_url": "https://uploads.github.com/repos/TeleCrypt-io/control-plane/releases/42/assets{?name,label}",
-        "html_url": f"https://github.com/TeleCrypt-io/control-plane/releases/tag/{RELEASE}",
-        "tarball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/tarball/{RELEASE}",
-        "zipball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/zipball/{RELEASE}",
+        "html_url": f"https://github.com/TeleCrypt-io/control-plane/releases/tag/{release}",
+        "tarball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/tarball/{release}",
+        "zipball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/zipball/{release}",
         "assets": [
-            asset(WHEEL, 1, 7, WHEEL_SHA),
-            asset(DIGEST_ASSET, 2, 128, "0" * 64),
+            asset(wheel, 1, 7, WHEEL_SHA, release),
+            asset(digest_asset, 2, 128, "0" * 64, release),
         ],
     }
 
@@ -305,7 +309,7 @@ class PrepareInputsTests(unittest.TestCase):
         environment = {
             "GH_TOKEN": "offline-test-token",
             "GH_API_VERSION": "2026-03-10",
-            "GITHUB_REPOSITORY": "TeleCrypt-io/telecrypt-synapse",
+            "GITHUB_REPOSITORY": "TeleCrypt-io/synapse-server-container",
             "RELEASE_ASSET_NAME": f"telecrypt-synapse-{RELEASE}.digest.json",
             "EXPECTED_TAG": "1.159-tc3",
             "EXPECTED_SHA": SOURCE_COMMIT,
@@ -327,11 +331,11 @@ class PrepareInputsTests(unittest.TestCase):
                 check=False,
             )
 
-    def test_exact_controlplane_record_and_rejects_drift(self) -> None:
+    def test_exact_policy_record_and_rejects_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / DIGEST_ASSET
             path.write_bytes(record())
-            prepare_inputs.validate_controlplane_digest(
+            prepare_inputs.validate_policy_digest(
                 path, RELEASE, SOURCE_COMMIT, ANNOTATED_TAG_SHA
             )
             for invalid in (
@@ -344,20 +348,20 @@ class PrepareInputsTests(unittest.TestCase):
             ):
                 path.write_bytes(invalid)
                 with self.assertRaises(SystemExit):
-                    prepare_inputs.validate_controlplane_digest(
+                    prepare_inputs.validate_policy_digest(
                         path, RELEASE, SOURCE_COMMIT, ANNOTATED_TAG_SHA
                     )
 
     def test_exact_release_assets_and_wheel_metadata(self) -> None:
         metadata = release_metadata()
-        wheel_asset, digest_asset = prepare_inputs.validate_controlplane_assets(
+        wheel_asset, digest_asset = prepare_inputs.validate_policy_assets(
             metadata, RELEASE, WHEEL, WHEEL_SHA
         )
         self.assertEqual(wheel_asset["name"], WHEEL)
         self.assertEqual(digest_asset["name"], DIGEST_ASSET)
         metadata["assets"] = metadata["assets"] + [asset("extra", 3, 1, "1" * 64)]
         with self.assertRaises(SystemExit):
-            prepare_inputs.validate_controlplane_assets(metadata, RELEASE, WHEEL, WHEEL_SHA)
+            prepare_inputs.validate_policy_assets(metadata, RELEASE, WHEEL, WHEEL_SHA)
 
     def test_exact_release_metadata_contract_and_rejects_drift(self) -> None:
         metadata = release_metadata()
@@ -365,7 +369,7 @@ class PrepareInputsTests(unittest.TestCase):
             f"https://github.com/TeleCrypt-io/control-plane/releases/tag/{RELEASE}",
             f"https://github.com/TeleCrypt-io/control-plane/releases/{RELEASE}",
         ):
-            prepare_inputs.validate_controlplane_release(
+            prepare_inputs.validate_policy_release(
                 {**metadata, "html_url": html_url}, RELEASE
             )
         for field, value in (
@@ -379,7 +383,46 @@ class PrepareInputsTests(unittest.TestCase):
             invalid = dict(metadata)
             invalid[field] = value
             with self.assertRaises(SystemExit):
-                prepare_inputs.validate_controlplane_release(invalid, RELEASE)
+                prepare_inputs.validate_policy_release(invalid, RELEASE)
+
+    def test_resolve_latest_policy_uses_highest_published_stable_release_once(self) -> None:
+        latest = "0.5.0"
+        latest_metadata = release_metadata(latest)
+        responses = {
+            "releases?per_page=100&page=1": [
+                {"tag_name": "0.4.0", "draft": False, "prerelease": False},
+                {"tag_name": "0.9.0", "draft": True, "prerelease": False},
+                {"tag_name": "0.8.0", "draft": False, "prerelease": True},
+                {"tag_name": latest, "draft": False, "prerelease": False},
+            ],
+            f"releases/tags/{latest}": latest_metadata,
+        }
+        with mock.patch.object(
+            prepare_inputs,
+            "fetch_policy_api",
+            side_effect=lambda endpoint: responses[endpoint],
+        ) as fetch:
+            self.assertEqual(
+                prepare_inputs.resolve_latest_policy(),
+                (latest, WHEEL_SHA),
+            )
+        self.assertEqual(
+            [call.args[0] for call in fetch.call_args_list],
+            ["releases?per_page=100&page=1", f"releases/tags/{latest}"],
+        )
+
+    def test_resolve_latest_policy_requires_a_published_stable_release(self) -> None:
+        with mock.patch.object(
+            prepare_inputs,
+            "fetch_policy_api",
+            return_value=[
+                {"tag_name": "0.4.0", "draft": True, "prerelease": False},
+                {"tag_name": "0.3.0", "draft": False, "prerelease": True},
+                {"tag_name": "invalid", "draft": False, "prerelease": False},
+            ],
+        ):
+            with self.assertRaises(SystemExit):
+                prepare_inputs.resolve_latest_policy()
 
     def test_fork_release_requires_immutable_source_only_release(self) -> None:
         metadata = fork_release_metadata()
@@ -463,7 +506,7 @@ class PrepareInputsTests(unittest.TestCase):
             metadata["assets"] = [dict(item) for item in metadata["assets"]]
             metadata["assets"][0][field] = value
             with self.assertRaises(SystemExit):
-                prepare_inputs.validate_controlplane_assets(metadata, RELEASE, WHEEL, WHEEL_SHA)
+                prepare_inputs.validate_policy_assets(metadata, RELEASE, WHEEL, WHEEL_SHA)
 
     def test_download_urls_reject_userinfo_and_redirect_userinfo(self) -> None:
         for url in (
@@ -690,10 +733,10 @@ class PrepareInputsTests(unittest.TestCase):
             self.assertEqual(log.read_text(encoding="utf-8").splitlines(), [
                 "api --include --hostname github.com --header Accept: application/vnd.github+json "
                 "--header X-GitHub-Api-Version: 2026-03-10 "
-                "repos/TeleCrypt-io/telecrypt-synapse/releases?per_page=100&page=1",
+                "repos/TeleCrypt-io/synapse-server-container/releases?per_page=100&page=1",
                 "api --include --hostname github.com --header Accept: application/vnd.github+json "
                 "--header X-GitHub-Api-Version: 2026-03-10 "
-                "repos/TeleCrypt-io/telecrypt-synapse/releases/9",
+                "repos/TeleCrypt-io/synapse-server-container/releases/9",
             ])
 
     def test_publish_release_reuses_numeric_draft_and_uses_numeric_mutations(self) -> None:
@@ -726,12 +769,12 @@ class PrepareInputsTests(unittest.TestCase):
                 "if endpoint.endswith('releases?per_page=100&page=1'):\n"
                 "    delayed = os.environ.get('FAKE_CREATE_LIST_DELAY') and state.get('created')\n"
                 "    response, status = ([release] if state['exists'] and not delayed else []), 200\n"
-                "elif endpoint == 'repos/TeleCrypt-io/telecrypt-synapse/releases' and '--method' in args:\n"
+                "elif endpoint == 'repos/TeleCrypt-io/synapse-server-container/releases' and '--method' in args:\n"
                 "    state['exists'] = True\n"
                 "    state['created'] = True\n"
                 "    state_path.write_text(json.dumps(state), encoding='utf-8')\n"
                 "    response, status = release, 201\n"
-                "elif endpoint == 'repos/TeleCrypt-io/telecrypt-synapse/releases/123' and '--method' in args:\n"
+                "elif endpoint == 'repos/TeleCrypt-io/synapse-server-container/releases/123' and '--method' in args:\n"
                 "    if os.environ.get('FAKE_EDIT_COMMITTED_FAILURE'):\n"
                 "        state['published'] = True\n"
                 "        state_path.write_text(json.dumps(state), encoding='utf-8')\n"
@@ -745,9 +788,9 @@ class PrepareInputsTests(unittest.TestCase):
                 "    release['draft'] = False\n"
                 "    release['immutable'] = True\n"
                 "    response, status = release, 200\n"
-                "elif endpoint == 'repos/TeleCrypt-io/telecrypt-synapse/releases/123':\n"
+                "elif endpoint == 'repos/TeleCrypt-io/synapse-server-container/releases/123':\n"
                 "    response, status = release, 200\n"
-                "elif endpoint == 'https://uploads.github.com/repos/TeleCrypt-io/telecrypt-synapse/releases/123/assets?name=' + os.environ['RELEASE_ASSET_NAME']:\n"
+                "elif endpoint == 'https://uploads.github.com/repos/TeleCrypt-io/synapse-server-container/releases/123/assets?name=' + os.environ['RELEASE_ASSET_NAME']:\n"
                 "    if os.environ.get('FAKE_UPLOAD_FAILURE'):\n"
                 "        sys.stderr.write('fixture upload rejected\\n')\n"
                 "        raise SystemExit(17)\n"
@@ -755,7 +798,7 @@ class PrepareInputsTests(unittest.TestCase):
                 "        state['asset'] = True\n"
                 "        state_path.write_text(json.dumps(state), encoding='utf-8')\n"
                 "    response, status = asset, 201\n"
-                "elif endpoint == 'repos/TeleCrypt-io/telecrypt-synapse/releases/assets/321':\n"
+                "elif endpoint == 'repos/TeleCrypt-io/synapse-server-container/releases/assets/321':\n"
                 "    sys.stdout.buffer.write(record)\n"
                 "    raise SystemExit(0)\n"
                 "else:\n"
@@ -780,11 +823,11 @@ class PrepareInputsTests(unittest.TestCase):
             endpoints = [value for call in calls for value in call if value.startswith(("repos/", "https://"))]
             self.assertTrue(any("releases?per_page=100&page=1" in value for value in endpoints))
             self.assertTrue(any(value.endswith("releases/123") for value in endpoints))
-            self.assertTrue(any(value == "https://uploads.github.com/repos/TeleCrypt-io/telecrypt-synapse/releases/123/assets?name=telecrypt-synapse-1.159-tc3.digest.json" for value in endpoints))
+            self.assertTrue(any(value == "https://uploads.github.com/repos/TeleCrypt-io/synapse-server-container/releases/123/assets?name=telecrypt-synapse-1.159-tc3.digest.json" for value in endpoints))
             self.assertFalse(any(value == "uploads.github.com" for call in calls for value in call))
             self.assertTrue(any(value.endswith("releases/assets/321") for value in endpoints))
             self.assertFalse(any("releases/tags/" in value for value in endpoints))
-            self.assertFalse(any(value == "repos/TeleCrypt-io/telecrypt-synapse/releases" for value in endpoints))
+            self.assertFalse(any(value == "repos/TeleCrypt-io/synapse-server-container/releases" for value in endpoints))
 
             log.write_text("", encoding="utf-8")
             state.write_text(json.dumps({"exists": False, "asset": False, "published": False}), encoding="utf-8")
@@ -799,7 +842,7 @@ class PrepareInputsTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr + "\n" + calls_text)
             calls = [json.loads(line) for line in calls_text.splitlines()]
             endpoints = [value for call in calls for value in call if value.startswith(("repos/", "https://"))]
-            self.assertTrue(any(value == "repos/TeleCrypt-io/telecrypt-synapse/releases" for value in endpoints))
+            self.assertTrue(any(value == "repos/TeleCrypt-io/synapse-server-container/releases" for value in endpoints))
             self.assertTrue(any(value.endswith("releases/123") for value in endpoints))
 
             log.write_text("", encoding="utf-8")
@@ -926,20 +969,20 @@ class PrepareInputsTests(unittest.TestCase):
             "immutable": True,
             "created_at": "2026-08-22T00:00:00Z",
             "published_at": "2026-08-23T00:00:00Z",
-            "url": "https://api.github.com/repos/TeleCrypt-io/telecrypt-synapse/releases/7",
-            "assets_url": "https://api.github.com/repos/TeleCrypt-io/telecrypt-synapse/releases/7/assets",
-            "upload_url": "https://uploads.github.com/repos/TeleCrypt-io/telecrypt-synapse/releases/7/assets{?name,label}",
-            "html_url": "https://github.com/TeleCrypt-io/telecrypt-synapse/releases/tag/1.159-tc3",
-            "tarball_url": "https://api.github.com/repos/TeleCrypt-io/telecrypt-synapse/tarball/1.159-tc3",
-            "zipball_url": "https://api.github.com/repos/TeleCrypt-io/telecrypt-synapse/zipball/1.159-tc3",
+            "url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/releases/7",
+            "assets_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/releases/7/assets",
+            "upload_url": "https://uploads.github.com/repos/TeleCrypt-io/synapse-server-container/releases/7/assets{?name,label}",
+            "html_url": "https://github.com/TeleCrypt-io/synapse-server-container/releases/tag/1.159-tc3",
+            "tarball_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/tarball/1.159-tc3",
+            "zipball_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/zipball/1.159-tc3",
             "assets": [{
                 "name": "telecrypt-synapse-1.159-tc3.digest.json",
                 "id": 8,
                 "label": "",
                 "state": "uploaded",
                 "size": 10,
-                "url": "https://api.github.com/repos/TeleCrypt-io/telecrypt-synapse/releases/assets/8",
-                "browser_download_url": "https://github.com/TeleCrypt-io/telecrypt-synapse/releases/download/1.159-tc3/telecrypt-synapse-1.159-tc3.digest.json",
+                "url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/releases/assets/8",
+                "browser_download_url": "https://github.com/TeleCrypt-io/synapse-server-container/releases/download/1.159-tc3/telecrypt-synapse-1.159-tc3.digest.json",
                 "digest": digest,
                 "created_at": "2026-08-22T00:00:01Z",
                 "updated_at": "2026-08-22T00:00:02Z",
@@ -992,18 +1035,18 @@ class PrepareInputsTests(unittest.TestCase):
                 },
             },
         }
-        original = prepare_inputs.fetch_controlplane_api
-        prepare_inputs.fetch_controlplane_api = lambda endpoint: responses[endpoint]
+        original = prepare_inputs.fetch_policy_api
+        prepare_inputs.fetch_policy_api = lambda endpoint: responses[endpoint]
         try:
             self.assertEqual(
-                prepare_inputs.fetch_controlplane_annotated_tag(RELEASE),
+                prepare_inputs.fetch_policy_annotated_tag(RELEASE),
                 (ANNOTATED_TAG_SHA, SOURCE_COMMIT),
             )
             responses[f"git/ref/tags/{RELEASE}"]["object"]["type"] = "commit"
             with self.assertRaises(SystemExit):
-                prepare_inputs.fetch_controlplane_annotated_tag(RELEASE)
+                prepare_inputs.fetch_policy_annotated_tag(RELEASE)
         finally:
-            prepare_inputs.fetch_controlplane_api = original
+            prepare_inputs.fetch_policy_api = original
 
     def test_build_provenance_binds_the_inspected_base_digest(self) -> None:
         digest = "sha256:" + "1" * 64

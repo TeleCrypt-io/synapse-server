@@ -12,7 +12,6 @@ VERSION_KEYS = (
     "SYNAPSE_VERSION",
     "TELECRYPT_REVISION",
     "S3_PROVIDER_VERSION",
-    "CONTROLPLANE_RELEASE",
 )
 ALL_KEYS = VERSION_KEYS
 VERSION_RE = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")

@@ -5,9 +5,9 @@ set -euo pipefail
 # the boundary small: reject options/refspecs, clear ambient transport state,
 # and let Git validate the checkout it is operating on.
 readonly GIT=/usr/bin/git
-readonly REPOSITORY='TeleCrypt-io/telecrypt-synapse'
-readonly REMOTE='https://github.com/TeleCrypt-io/telecrypt-synapse.git'
-readonly REMOTE_WITHOUT_SUFFIX='https://github.com/TeleCrypt-io/telecrypt-synapse'
+readonly REPOSITORY='TeleCrypt-io/synapse-server-container'
+readonly REMOTE='https://github.com/TeleCrypt-io/synapse-server-container.git'
+readonly REMOTE_WITHOUT_SUFFIX='https://github.com/TeleCrypt-io/synapse-server-container'
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/telecrypt-git.XXXXXX")"

@@ -11,7 +11,7 @@ set -euo pipefail
 : "${EXPECTED_ANNOTATED_TAG_SHA:?EXPECTED_ANNOTATED_TAG_SHA is required}"
 : "${EXPECTED_DIGEST:?EXPECTED_DIGEST is required}"
 
-readonly REPOSITORY='TeleCrypt-io/telecrypt-synapse'
+readonly REPOSITORY='TeleCrypt-io/synapse-server-container'
 readonly IMAGE='ghcr.io/telecrypt-io/telecrypt-synapse'
 readonly RELEASE_BODY="Exact Synapse release for source commit $EXPECTED_SHA."
 readonly MAX_RECORD_BYTES=$((64 * 1024))

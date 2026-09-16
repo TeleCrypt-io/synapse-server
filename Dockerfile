@@ -16,8 +16,8 @@ ARG S3_PROVIDER_VERSION
 ARG S3_PROVIDER_FORK_RELEASE
 ARG S3_PROVIDER_FORK_COMMIT
 ARG S3_PROVIDER_FORK_ARCHIVE_SHA256
-ARG CONTROLPLANE_RELEASE
-ARG CONTROLPLANE_WHEEL_SHA256
+ARG POLICY_RELEASE
+ARG POLICY_WHEEL_SHA256
 USER root
 RUN --mount=type=bind,source=s3-provider.lock,target=/tmp/s3-provider.lock,readonly \
     --mount=type=bind,source=release-inputs,target=/tmp/release-inputs,readonly \
@@ -40,25 +40,25 @@ RUN --mount=type=bind,source=s3-provider.lock,target=/tmp/s3-provider.lock,reado
     test -n "${S3_PROVIDER_FORK_ARCHIVE_SHA256}" || { echo "S3_PROVIDER_FORK_ARCHIVE_SHA256 is required" >&2; exit 2; }; \
     test "${#S3_PROVIDER_FORK_ARCHIVE_SHA256}" -eq 64 || { echo "S3_PROVIDER_FORK_ARCHIVE_SHA256 must be 64 hex characters" >&2; exit 2; }; \
     case "${S3_PROVIDER_FORK_ARCHIVE_SHA256}" in *[!0123456789abcdef]*) echo "S3_PROVIDER_FORK_ARCHIVE_SHA256 must be lowercase hexadecimal" >&2; exit 2 ;; esac; \
-    test -n "${CONTROLPLANE_RELEASE}" || { echo "CONTROLPLANE_RELEASE is required" >&2; exit 2; }; \
-    test -n "${CONTROLPLANE_WHEEL_SHA256}" || { echo "CONTROLPLANE_WHEEL_SHA256 is required" >&2; exit 2; }; \
-    test "${#CONTROLPLANE_WHEEL_SHA256}" -eq 64 || { echo "CONTROLPLANE_WHEEL_SHA256 must be 64 hex characters" >&2; exit 2; }; \
-    case "${CONTROLPLANE_WHEEL_SHA256}" in *[!0123456789abcdef]*) echo "CONTROLPLANE_WHEEL_SHA256 must be lowercase hexadecimal" >&2; exit 2 ;; esac; \
+    test -n "${POLICY_RELEASE}" || { echo "POLICY_RELEASE is required" >&2; exit 2; }; \
+    test -n "${POLICY_WHEEL_SHA256}" || { echo "POLICY_WHEEL_SHA256 is required" >&2; exit 2; }; \
+    test "${#POLICY_WHEEL_SHA256}" -eq 64 || { echo "POLICY_WHEEL_SHA256 must be 64 hex characters" >&2; exit 2; }; \
+    case "${POLICY_WHEEL_SHA256}" in *[!0123456789abcdef]*) echo "POLICY_WHEEL_SHA256 must be lowercase hexadecimal" >&2; exit 2 ;; esac; \
     synapse_archive="synapse-${SYNAPSE_FORK_RELEASE}.tar.gz"; \
     archive="synapse-s3-storage-provider-${S3_PROVIDER_FORK_RELEASE}.tar.gz"; \
-    wheel="telecrypt_tier_controller-${CONTROLPLANE_RELEASE}-py3-none-any.whl"; \
+    wheel="telecrypt_tier_controller-${POLICY_RELEASE}-py3-none-any.whl"; \
     synapse_archive_path="/tmp/release-inputs/${synapse_archive}"; \
     archive_path="/tmp/release-inputs/${archive}"; \
     wheel_path="/tmp/release-inputs/${wheel}"; \
     test -s "${synapse_archive_path}" || { echo "verified Synapse fork archive is missing" >&2; exit 2; }; \
     test -s "${archive_path}" || { echo "verified S3-provider fork archive is missing" >&2; exit 2; }; \
-    test -s "${wheel_path}" || { echo "verified Controlplane wheel is missing" >&2; exit 2; }; \
+    test -s "${wheel_path}" || { echo "verified policy wheel is missing" >&2; exit 2; }; \
     printf '%s  %s\n' "${SYNAPSE_FORK_ARCHIVE_SHA256}" "${synapse_archive_path}" | sha256sum --strict --check -; \
     printf '%s  %s\n' "${S3_PROVIDER_FORK_ARCHIVE_SHA256}" "${archive_path}" | sha256sum --strict --check -; \
-    printf '%s  %s\n' "${CONTROLPLANE_WHEEL_SHA256}" "${wheel_path}" | sha256sum --strict --check -; \
+    printf '%s  %s\n' "${POLICY_WHEEL_SHA256}" "${wheel_path}" | sha256sum --strict --check -; \
     python3 -c 'import importlib.metadata as m; import setuptools.build_meta as backend; expected={"psycopg2":"2.9.11", "PyYAML":"6.0.3", "Twisted":"25.5.0", "python-dateutil":"2.9.0.post0", "six":"1.17.0", "urllib3":"2.7.0", "setuptools":"83.0.0"}; actual={name:m.version(name) for name in expected}; assert actual == expected, (expected, actual); assert backend.__name__ == "setuptools.build_meta", backend.__name__'; \
     printf '%s --hash=sha256:%s\n' "${archive_path}" "${S3_PROVIDER_FORK_ARCHIVE_SHA256}" > /tmp/s3-provider-artifacts.lock; \
-    printf '%s --hash=sha256:%s\n' "${wheel_path}" "${CONTROLPLANE_WHEEL_SHA256}" >> /tmp/s3-provider-artifacts.lock; \
+    printf '%s --hash=sha256:%s\n' "${wheel_path}" "${POLICY_WHEEL_SHA256}" >> /tmp/s3-provider-artifacts.lock; \
     pip3 install \
       --disable-pip-version-check \
       --root-user-action=ignore \
@@ -88,7 +88,7 @@ RUN --mount=type=bind,source=s3-provider.lock,target=/tmp/s3-provider.lock,reado
     cp -a /tmp/telecrypt-synapse-fork/synapse/. "${synapse_site}/"; \
     rm -rf /tmp/telecrypt-synapse-fork; \
     pip3 check; \
-    python3 -c 'import importlib.metadata as m, pathlib, sys; expected={}; [expected.__setitem__(line.split("==", 1)[0].lower().replace("_", "-"), line.split("==", 1)[1].split()[0]) for line in pathlib.Path("/tmp/s3-provider.lock").read_text().splitlines() if line and not line.startswith("#")]; expected.update({"matrix-synapse":sys.argv[1], "synapse-s3-storage-provider":sys.argv[2], "telecrypt-tier-controller":sys.argv[3]}); actual={name:m.version(name) for name in expected}; assert actual == expected, (expected, actual)' "${SYNAPSE_VERSION}" "${S3_PROVIDER_VERSION}" "${CONTROLPLANE_RELEASE}"; \
+    python3 -c 'import importlib.metadata as m, pathlib, sys; expected={}; [expected.__setitem__(line.split("==", 1)[0].lower().replace("_", "-"), line.split("==", 1)[1].split()[0]) for line in pathlib.Path("/tmp/s3-provider.lock").read_text().splitlines() if line and not line.startswith("#")]; expected.update({"matrix-synapse":sys.argv[1], "synapse-s3-storage-provider":sys.argv[2], "telecrypt-tier-controller":sys.argv[3]}); actual={name:m.version(name) for name in expected}; assert actual == expected, (expected, actual)' "${SYNAPSE_VERSION}" "${S3_PROVIDER_VERSION}" "${POLICY_RELEASE}"; \
     rm -f /tmp/s3-provider-artifacts.lock
 COPY --chown=991:991 --chmod=0755 telecrypt-synapse-entrypoint /telecrypt-synapse-entrypoint
 COPY --chown=991:991 LICENSE THIRD_PARTY_NOTICES.md /licenses/

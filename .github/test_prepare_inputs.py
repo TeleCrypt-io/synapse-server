@@ -309,7 +309,7 @@ class PrepareInputsTests(unittest.TestCase):
         environment = {
             "GH_TOKEN": "offline-test-token",
             "GH_API_VERSION": "2026-03-10",
-            "GITHUB_REPOSITORY": "TeleCrypt-io/synapse-server-container",
+            "GITHUB_REPOSITORY": "TeleCrypt-io/synapse-server",
             "RELEASE_ASSET_NAME": f"telecrypt-synapse-{RELEASE}.digest.json",
             "EXPECTED_TAG": "1.159-tc3",
             "EXPECTED_SHA": SOURCE_COMMIT,
@@ -733,10 +733,10 @@ class PrepareInputsTests(unittest.TestCase):
             self.assertEqual(log.read_text(encoding="utf-8").splitlines(), [
                 "api --include --hostname github.com --header Accept: application/vnd.github+json "
                 "--header X-GitHub-Api-Version: 2026-03-10 "
-                "repos/TeleCrypt-io/synapse-server-container/releases?per_page=100&page=1",
+                "repos/TeleCrypt-io/synapse-server/releases?per_page=100&page=1",
                 "api --include --hostname github.com --header Accept: application/vnd.github+json "
                 "--header X-GitHub-Api-Version: 2026-03-10 "
-                "repos/TeleCrypt-io/synapse-server-container/releases/9",
+                "repos/TeleCrypt-io/synapse-server/releases/9",
             ])
 
     def test_publish_release_reuses_numeric_draft_and_uses_numeric_mutations(self) -> None:
@@ -769,12 +769,12 @@ class PrepareInputsTests(unittest.TestCase):
                 "if endpoint.endswith('releases?per_page=100&page=1'):\n"
                 "    delayed = os.environ.get('FAKE_CREATE_LIST_DELAY') and state.get('created')\n"
                 "    response, status = ([release] if state['exists'] and not delayed else []), 200\n"
-                "elif endpoint == 'repos/TeleCrypt-io/synapse-server-container/releases' and '--method' in args:\n"
+                "elif endpoint == 'repos/TeleCrypt-io/synapse-server/releases' and '--method' in args:\n"
                 "    state['exists'] = True\n"
                 "    state['created'] = True\n"
                 "    state_path.write_text(json.dumps(state), encoding='utf-8')\n"
                 "    response, status = release, 201\n"
-                "elif endpoint == 'repos/TeleCrypt-io/synapse-server-container/releases/123' and '--method' in args:\n"
+                "elif endpoint == 'repos/TeleCrypt-io/synapse-server/releases/123' and '--method' in args:\n"
                 "    if os.environ.get('FAKE_EDIT_COMMITTED_FAILURE'):\n"
                 "        state['published'] = True\n"
                 "        state_path.write_text(json.dumps(state), encoding='utf-8')\n"
@@ -788,9 +788,9 @@ class PrepareInputsTests(unittest.TestCase):
                 "    release['draft'] = False\n"
                 "    release['immutable'] = True\n"
                 "    response, status = release, 200\n"
-                "elif endpoint == 'repos/TeleCrypt-io/synapse-server-container/releases/123':\n"
+                "elif endpoint == 'repos/TeleCrypt-io/synapse-server/releases/123':\n"
                 "    response, status = release, 200\n"
-                "elif endpoint == 'https://uploads.github.com/repos/TeleCrypt-io/synapse-server-container/releases/123/assets?name=' + os.environ['RELEASE_ASSET_NAME']:\n"
+                "elif endpoint == 'https://uploads.github.com/repos/TeleCrypt-io/synapse-server/releases/123/assets?name=' + os.environ['RELEASE_ASSET_NAME']:\n"
                 "    if os.environ.get('FAKE_UPLOAD_FAILURE'):\n"
                 "        sys.stderr.write('fixture upload rejected\\n')\n"
                 "        raise SystemExit(17)\n"
@@ -798,7 +798,7 @@ class PrepareInputsTests(unittest.TestCase):
                 "        state['asset'] = True\n"
                 "        state_path.write_text(json.dumps(state), encoding='utf-8')\n"
                 "    response, status = asset, 201\n"
-                "elif endpoint == 'repos/TeleCrypt-io/synapse-server-container/releases/assets/321':\n"
+                "elif endpoint == 'repos/TeleCrypt-io/synapse-server/releases/assets/321':\n"
                 "    sys.stdout.buffer.write(record)\n"
                 "    raise SystemExit(0)\n"
                 "else:\n"
@@ -823,11 +823,11 @@ class PrepareInputsTests(unittest.TestCase):
             endpoints = [value for call in calls for value in call if value.startswith(("repos/", "https://"))]
             self.assertTrue(any("releases?per_page=100&page=1" in value for value in endpoints))
             self.assertTrue(any(value.endswith("releases/123") for value in endpoints))
-            self.assertTrue(any(value == "https://uploads.github.com/repos/TeleCrypt-io/synapse-server-container/releases/123/assets?name=telecrypt-synapse-1.159-tc3.digest.json" for value in endpoints))
+            self.assertTrue(any(value == "https://uploads.github.com/repos/TeleCrypt-io/synapse-server/releases/123/assets?name=telecrypt-synapse-1.159-tc3.digest.json" for value in endpoints))
             self.assertFalse(any(value == "uploads.github.com" for call in calls for value in call))
             self.assertTrue(any(value.endswith("releases/assets/321") for value in endpoints))
             self.assertFalse(any("releases/tags/" in value for value in endpoints))
-            self.assertFalse(any(value == "repos/TeleCrypt-io/synapse-server-container/releases" for value in endpoints))
+            self.assertFalse(any(value == "repos/TeleCrypt-io/synapse-server/releases" for value in endpoints))
 
             log.write_text("", encoding="utf-8")
             state.write_text(json.dumps({"exists": False, "asset": False, "published": False}), encoding="utf-8")
@@ -842,7 +842,7 @@ class PrepareInputsTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr + "\n" + calls_text)
             calls = [json.loads(line) for line in calls_text.splitlines()]
             endpoints = [value for call in calls for value in call if value.startswith(("repos/", "https://"))]
-            self.assertTrue(any(value == "repos/TeleCrypt-io/synapse-server-container/releases" for value in endpoints))
+            self.assertTrue(any(value == "repos/TeleCrypt-io/synapse-server/releases" for value in endpoints))
             self.assertTrue(any(value.endswith("releases/123") for value in endpoints))
 
             log.write_text("", encoding="utf-8")
@@ -969,20 +969,20 @@ class PrepareInputsTests(unittest.TestCase):
             "immutable": True,
             "created_at": "2026-08-22T00:00:00Z",
             "published_at": "2026-08-23T00:00:00Z",
-            "url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/releases/7",
-            "assets_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/releases/7/assets",
-            "upload_url": "https://uploads.github.com/repos/TeleCrypt-io/synapse-server-container/releases/7/assets{?name,label}",
-            "html_url": "https://github.com/TeleCrypt-io/synapse-server-container/releases/tag/1.159-tc3",
-            "tarball_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/tarball/1.159-tc3",
-            "zipball_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/zipball/1.159-tc3",
+            "url": "https://api.github.com/repos/TeleCrypt-io/synapse-server/releases/7",
+            "assets_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server/releases/7/assets",
+            "upload_url": "https://uploads.github.com/repos/TeleCrypt-io/synapse-server/releases/7/assets{?name,label}",
+            "html_url": "https://github.com/TeleCrypt-io/synapse-server/releases/tag/1.159-tc3",
+            "tarball_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server/tarball/1.159-tc3",
+            "zipball_url": "https://api.github.com/repos/TeleCrypt-io/synapse-server/zipball/1.159-tc3",
             "assets": [{
                 "name": "telecrypt-synapse-1.159-tc3.digest.json",
                 "id": 8,
                 "label": "",
                 "state": "uploaded",
                 "size": 10,
-                "url": "https://api.github.com/repos/TeleCrypt-io/synapse-server-container/releases/assets/8",
-                "browser_download_url": "https://github.com/TeleCrypt-io/synapse-server-container/releases/download/1.159-tc3/telecrypt-synapse-1.159-tc3.digest.json",
+                "url": "https://api.github.com/repos/TeleCrypt-io/synapse-server/releases/assets/8",
+                "browser_download_url": "https://github.com/TeleCrypt-io/synapse-server/releases/download/1.159-tc3/telecrypt-synapse-1.159-tc3.digest.json",
                 "digest": digest,
                 "created_at": "2026-08-22T00:00:01Z",
                 "updated_at": "2026-08-22T00:00:02Z",

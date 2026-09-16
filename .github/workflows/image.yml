@@ -284,7 +284,7 @@ jobs:
             POLICY_WHEEL_SHA256=${{ needs.versions.outputs.policy_wheel_sha256 }}
           labels: |
             org.opencontainers.image.licenses=BUSL-1.1
-            org.opencontainers.image.source=https://github.com/TeleCrypt-io/synapse-server-container
+            org.opencontainers.image.source=https://github.com/TeleCrypt-io/synapse-server
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.versions.outputs.image_tag }}
             org.opencontainers.image.base.name=ghcr.io/element-hq/synapse
@@ -358,7 +358,7 @@ jobs:
           test -s "$IMAGE_ARCHIVE"
           test "$(stat -c '%s' "$IMAGE_ARCHIVE")" -le $((1024 * 1024 * 1024))
           "$GITHUB_WORKSPACE/.github/load_image.sh" "$IMAGE_ARCHIVE"
-          check_image_value source '{{index .Config.Labels "org.opencontainers.image.source"}}' "https://github.com/TeleCrypt-io/synapse-server-container"
+          check_image_value source '{{index .Config.Labels "org.opencontainers.image.source"}}' "https://github.com/TeleCrypt-io/synapse-server"
           check_image_value license '{{index .Config.Labels "org.opencontainers.image.licenses"}}' "BUSL-1.1"
           check_image_value version '{{index .Config.Labels "org.opencontainers.image.version"}}' "$IMAGE_TAG"
           check_image_value revision '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$GITHUB_SHA"

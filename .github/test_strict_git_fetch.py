@@ -150,8 +150,8 @@ class StrictGitFetchTests(unittest.TestCase):
 
     def test_accepts_github_canonical_remote_with_or_without_git_suffix(self) -> None:
         for remote in (
-            "https://github.com/TeleCrypt-io/synapse-server-container.git",
-            "https://github.com/TeleCrypt-io/synapse-server-container",
+            "https://github.com/TeleCrypt-io/synapse-server.git",
+            "https://github.com/TeleCrypt-io/synapse-server",
         ):
             git(self.root, "config", "--local", "remote.origin.url", remote)
             result = self.run_helper("local-read", "rev-parse", "HEAD")

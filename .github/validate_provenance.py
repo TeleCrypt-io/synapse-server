@@ -21,6 +21,7 @@ REQUIRED_KEYS = (
     "S3_PROVIDER_FORK_RELEASE",
     "S3_PROVIDER_FORK_COMMIT",
     "S3_PROVIDER_FORK_ARCHIVE_SHA256",
+    "POLICY_WHEEL_SHA256",
 )
 SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 COMMIT_RE = re.compile(r"[0-9a-f]{40}\Z")
@@ -65,6 +66,7 @@ def load_lock(path: Path) -> dict[str, str]:
     for key in (
         "SYNAPSE_FORK_ARCHIVE_SHA256",
         "S3_PROVIDER_FORK_ARCHIVE_SHA256",
+        "POLICY_WHEEL_SHA256",
     ):
         if not SHA256_RE.fullmatch(values[key]):
             fail(f"{key} must be a lowercase SHA-256 digest")

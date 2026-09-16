@@ -48,7 +48,6 @@ MAX_TOTAL_INPUT_BYTES = 256 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 4096
 MAX_ARCHIVE_NAME_BYTES = 4096
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
-MAX_POLICY_RELEASE_PAGES = 100
 BACKSLASH_CONFUSABLES = frozenset("\\\u2216\u29f5\ufe68\uff3c")
 ALLOWED_DOWNLOAD_HOSTS = frozenset(
     {
@@ -186,7 +185,7 @@ def read_response(response) -> bytes:
     return response.read()
 
 
-def fetch_github_api(repository: str, endpoint: str, label: str) -> object:
+def fetch_github_api(repository: str, endpoint: str, label: str) -> dict:
     url = f"{GITHUB_API_ROOT}/repos/{repository}/{endpoint}"
     validate_download_url(url, "api.github.com")
     request = urllib.request.Request(
@@ -240,20 +239,17 @@ def fetch_github_api(repository: str, endpoint: str, label: str) -> object:
             f"{label} API metadata is not valid JSON: {type(exc).__name__}: {exc}"
             f"\nresponse body:\n{body}"
         )
-    if not isinstance(metadata, (dict, list)):
-        fail(f"{label} API metadata is neither an object nor an array")
+    if not isinstance(metadata, dict):
+        fail(f"{label} API metadata is not an object")
     return metadata
 
 
-def fetch_policy_api(endpoint: str) -> object:
+def fetch_policy_api(endpoint: str) -> dict:
     return fetch_github_api(POLICY_REPOSITORY, endpoint, "policy")
 
 
 def fetch_fork_api(repository: str, endpoint: str) -> dict:
-    metadata = fetch_github_api(repository, endpoint, "fork")
-    if not isinstance(metadata, dict):
-        fail(f"fork API metadata is not an object: {repository} {endpoint}")
-    return metadata
+    return fetch_github_api(repository, endpoint, "fork")
 
 
 def fetch_fork_annotated_tag(repository: str, release: str, expected_commit: str) -> str:
@@ -294,8 +290,6 @@ def fetch_fork_annotated_tag(repository: str, release: str, expected_commit: str
 
 def fetch_policy_release(release: str) -> dict:
     metadata = fetch_policy_api(f"releases/tags/{release}")
-    if not isinstance(metadata, dict):
-        fail(f"policy release metadata is not an object: {release}")
     validate_policy_release(metadata, release)
     return metadata
 
@@ -358,8 +352,6 @@ def validate_policy_release(metadata: dict, release: str) -> None:
 
 def fetch_policy_annotated_tag(release: str) -> tuple[str, str]:
     ref = fetch_policy_api(f"git/ref/tags/{release}")
-    if not isinstance(ref, dict):
-        fail("policy release tag metadata is not an object")
     api_root = f"{GITHUB_API_ROOT}/repos/{POLICY_REPOSITORY}"
     ref_object = ref.get("object")
     if (
@@ -375,8 +367,6 @@ def fetch_policy_annotated_tag(release: str) -> tuple[str, str]:
         fail("policy annotated tag ref has no exact tag-object SHA")
 
     tag_object = fetch_policy_api(f"git/tags/{annotated_tag_sha}")
-    if not isinstance(tag_object, dict):
-        fail("policy annotated tag metadata is not an object")
     if (
         tag_object.get("sha") != annotated_tag_sha
         or tag_object.get("tag") != release
@@ -426,58 +416,10 @@ def validate_fork_release(metadata: dict, repository: str, release: str) -> None
 
 def fetch_fork_release(repository: str, release: str, expected_commit: str) -> tuple[str, str]:
     metadata = fetch_github_api(repository, f"releases/tags/{release}", f"{repository} fork release")
-    if not isinstance(metadata, dict):
-        fail(f"{repository} fork release metadata is not an object")
     validate_fork_release(metadata, repository, release)
     annotated_tag_sha = fetch_fork_annotated_tag(repository, release, expected_commit)
     archive_root = f"{repository.replace('/', '-')}-{annotated_tag_sha[:7]}"
     return metadata["tarball_url"], archive_root
-
-
-def resolve_latest_policy() -> tuple[str, str]:
-    """Resolve one published stable policy release and its published wheel digest."""
-
-    candidates: list[str] = []
-    for page in range(1, MAX_POLICY_RELEASE_PAGES + 1):
-        releases = fetch_policy_api(f"releases?per_page=100&page={page}")
-        if not isinstance(releases, list) or len(releases) > 100:
-            fail("policy release listing is not a bounded array")
-        for release in releases:
-            if not isinstance(release, dict):
-                fail("policy release listing contains a malformed entry")
-            tag = release.get("tag_name")
-            if not isinstance(tag, str):
-                fail("policy release listing contains an entry without a tag")
-            if (
-                release.get("draft") is False
-                and release.get("prerelease") is False
-                and VERSION_RE.fullmatch(tag)
-            ):
-                candidates.append(tag)
-        if len(releases) < 100:
-            break
-    else:
-        fail(f"policy release listing exceeded {MAX_POLICY_RELEASE_PAGES} pages")
-
-    if not candidates:
-        fail("policy repository has no published stable release")
-    release = max(candidates, key=lambda value: tuple(int(part) for part in value.split(".")))
-    metadata = fetch_policy_release(release)
-    wheel = f"telecrypt_tier_controller-{release}-py3-none-any.whl"
-    assets = metadata.get("assets")
-    if not isinstance(assets, list):
-        fail("policy release assets are not a list")
-    wheel_assets = [
-        asset for asset in assets if isinstance(asset, dict) and asset.get("name") == wheel
-    ]
-    if len(wheel_assets) != 1:
-        fail("policy release does not contain exactly one expected wheel")
-    digest = wheel_assets[0].get("digest")
-    if not isinstance(digest, str) or not DIGEST_RE.fullmatch(digest):
-        fail("policy wheel does not contain an exact published SHA-256 digest")
-    wheel_sha256 = digest.removeprefix("sha256:")
-    validate_policy_assets(metadata, release, wheel, wheel_sha256)
-    return release, wheel_sha256
 
 
 def validate_policy_assets(
@@ -537,7 +479,7 @@ def validate_policy_assets(
         ):
             fail(f"policy {label} asset has no exact SHA-256 API digest")
     if wheel_asset["digest"] != f"sha256:{expected_wheel_sha256}":
-        fail("policy wheel API digest differs from the resolved release metadata")
+        fail("policy wheel API digest differs from provenance.lock")
     if wheel_asset["size"] > MAX_FILE_BYTES:
         fail("policy wheel API size exceeds the image input limit")
     if digest_asset["size"] > MAX_DIGEST_JSON_BYTES:
@@ -727,65 +669,22 @@ def validate_synapse_fork_archive(path: Path, expected_root: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--resolve-policy",
-        action="store_true",
-        help="resolve the latest published stable policy release and print its metadata",
-    )
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--lock", type=Path, default=Path("s3-provider.lock"))
-    parser.add_argument("--s3-provider-version")
-    parser.add_argument("--synapse-fork-release")
-    parser.add_argument("--synapse-fork-commit")
-    parser.add_argument("--synapse-fork-archive-sha256")
-    parser.add_argument("--s3-provider-fork-release")
-    parser.add_argument("--s3-provider-fork-commit")
-    parser.add_argument("--s3-provider-fork-archive-sha256")
-    parser.add_argument("--policy-release")
-    parser.add_argument("--policy-wheel-sha256")
+    parser.add_argument("--s3-provider-version", required=True)
+    parser.add_argument("--synapse-fork-release", required=True)
+    parser.add_argument("--synapse-fork-commit", required=True)
+    parser.add_argument("--synapse-fork-archive-sha256", required=True)
+    parser.add_argument("--s3-provider-fork-release", required=True)
+    parser.add_argument("--s3-provider-fork-commit", required=True)
+    parser.add_argument("--s3-provider-fork-archive-sha256", required=True)
+    parser.add_argument("--policy-release", required=True)
+    parser.add_argument("--policy-wheel-sha256", required=True)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if args.resolve_policy:
-        if any(
-            value is not None
-            for value in (
-                args.output,
-                args.lock if args.lock != Path("s3-provider.lock") else None,
-                args.s3_provider_version,
-                args.synapse_fork_release,
-                args.synapse_fork_commit,
-                args.synapse_fork_archive_sha256,
-                args.s3_provider_fork_release,
-                args.s3_provider_fork_commit,
-                args.s3_provider_fork_archive_sha256,
-                args.policy_release,
-                args.policy_wheel_sha256,
-            )
-        ):
-            fail("--resolve-policy cannot be combined with image preparation options")
-        release, wheel_sha256 = resolve_latest_policy()
-        print(f"POLICY_RELEASE={release}")
-        print(f"POLICY_WHEEL_SHA256={wheel_sha256}")
-        return
-    if args.output is None:
-        fail("--output is required unless --resolve-policy is used")
-    if args.policy_release is None or args.policy_wheel_sha256 is None:
-        fail("--policy-release and --policy-wheel-sha256 are required")
-    required_options = {
-        "--s3-provider-version": args.s3_provider_version,
-        "--synapse-fork-release": args.synapse_fork_release,
-        "--synapse-fork-commit": args.synapse_fork_commit,
-        "--synapse-fork-archive-sha256": args.synapse_fork_archive_sha256,
-        "--s3-provider-fork-release": args.s3_provider_fork_release,
-        "--s3-provider-fork-commit": args.s3_provider_fork_commit,
-        "--s3-provider-fork-archive-sha256": args.s3_provider_fork_archive_sha256,
-    }
-    missing_options = [name for name, value in required_options.items() if value is None]
-    if missing_options:
-        fail(f"missing image preparation options: {', '.join(missing_options)}")
     if not VERSION_RE.fullmatch(args.s3_provider_version):
         fail("S3 provider version is not an exact numeric release")
     if not VERSION_RE.fullmatch(args.policy_release):

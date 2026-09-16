@@ -1,4 +1,4 @@
-# Exact source provenance for the forked media implementation.
+# Exact source provenance for the forked media implementation and image policy.
 # Archive hashes identify the bytes returned by the published GitHub release-tag
 # archive URL. The fork release tags and commits must be present at their
 # immutable refs before a hosted image build is permitted; preparation downloads
@@ -13,3 +13,4 @@ S3_PROVIDER_UPSTREAM_COMMIT=208157c67ec7321515d07915bb276ae30d69d760
 S3_PROVIDER_FORK_RELEASE=v1.7.0-telecrypt.6
 S3_PROVIDER_FORK_COMMIT=4518034762a6a0055ae80534c164a753a639b717
 S3_PROVIDER_FORK_ARCHIVE_SHA256=1b0d874931dea2d7eac4f6f3e93e110100722cdab854d870680ea77eca62b5e9
+POLICY_WHEEL_SHA256=8812f6343b3935e9061e3ea2e32273e7bb383a82c1c10967f7157d0ba9095b42

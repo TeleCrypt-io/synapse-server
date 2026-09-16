@@ -61,9 +61,7 @@ def synapse_record(tag: str = "1.159-tc3") -> bytes:
     return (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
-def asset(
-    name: str, asset_id: int, size: int, digest: str, release: str = RELEASE
-) -> dict[str, object]:
+def asset(name: str, asset_id: int, size: int, digest: str) -> dict[str, object]:
     return {
         "id": asset_id,
         "name": name,
@@ -77,33 +75,31 @@ def asset(
             f"https://api.github.com/repos/TeleCrypt-io/control-plane/releases/assets/{asset_id}"
         ),
         "browser_download_url": (
-            f"https://github.com/TeleCrypt-io/control-plane/releases/download/{release}/{name}"
+            f"https://github.com/TeleCrypt-io/control-plane/releases/download/{RELEASE}/{name}"
         ),
     }
 
 
-def release_metadata(release: str = RELEASE) -> dict[str, object]:
-    wheel = f"telecrypt_tier_controller-{release}-py3-none-any.whl"
-    digest_asset = f"controlplane-{release}.digest.json"
+def release_metadata() -> dict[str, object]:
     return {
         "id": 42,
-        "tag_name": release,
-        "name": release,
+        "tag_name": RELEASE,
+        "name": RELEASE,
         "draft": False,
         "prerelease": False,
         "immutable": True,
-        "body": f"Exact Controlplane release {release}.",
+        "body": f"Exact Controlplane release {RELEASE}.",
         "created_at": "2026-08-22T00:00:00Z",
         "published_at": "2026-08-23T00:00:00Z",
         "url": "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/42",
         "assets_url": "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/42/assets",
         "upload_url": "https://uploads.github.com/repos/TeleCrypt-io/control-plane/releases/42/assets{?name,label}",
-        "html_url": f"https://github.com/TeleCrypt-io/control-plane/releases/tag/{release}",
-        "tarball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/tarball/{release}",
-        "zipball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/zipball/{release}",
+        "html_url": f"https://github.com/TeleCrypt-io/control-plane/releases/tag/{RELEASE}",
+        "tarball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/tarball/{RELEASE}",
+        "zipball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/zipball/{RELEASE}",
         "assets": [
-            asset(wheel, 1, 7, WHEEL_SHA, release),
-            asset(digest_asset, 2, 128, "0" * 64, release),
+            asset(WHEEL, 1, 7, WHEEL_SHA),
+            asset(DIGEST_ASSET, 2, 128, "0" * 64),
         ],
     }
 
@@ -384,45 +380,6 @@ class PrepareInputsTests(unittest.TestCase):
             invalid[field] = value
             with self.assertRaises(SystemExit):
                 prepare_inputs.validate_policy_release(invalid, RELEASE)
-
-    def test_resolve_latest_policy_uses_highest_published_stable_release_once(self) -> None:
-        latest = "0.5.0"
-        latest_metadata = release_metadata(latest)
-        responses = {
-            "releases?per_page=100&page=1": [
-                {"tag_name": "0.4.0", "draft": False, "prerelease": False},
-                {"tag_name": "0.9.0", "draft": True, "prerelease": False},
-                {"tag_name": "0.8.0", "draft": False, "prerelease": True},
-                {"tag_name": latest, "draft": False, "prerelease": False},
-            ],
-            f"releases/tags/{latest}": latest_metadata,
-        }
-        with mock.patch.object(
-            prepare_inputs,
-            "fetch_policy_api",
-            side_effect=lambda endpoint: responses[endpoint],
-        ) as fetch:
-            self.assertEqual(
-                prepare_inputs.resolve_latest_policy(),
-                (latest, WHEEL_SHA),
-            )
-        self.assertEqual(
-            [call.args[0] for call in fetch.call_args_list],
-            ["releases?per_page=100&page=1", f"releases/tags/{latest}"],
-        )
-
-    def test_resolve_latest_policy_requires_a_published_stable_release(self) -> None:
-        with mock.patch.object(
-            prepare_inputs,
-            "fetch_policy_api",
-            return_value=[
-                {"tag_name": "0.4.0", "draft": True, "prerelease": False},
-                {"tag_name": "0.3.0", "draft": False, "prerelease": True},
-                {"tag_name": "invalid", "draft": False, "prerelease": False},
-            ],
-        ):
-            with self.assertRaises(SystemExit):
-                prepare_inputs.resolve_latest_policy()
 
     def test_fork_release_requires_immutable_source_only_release(self) -> None:
         metadata = fork_release_metadata()

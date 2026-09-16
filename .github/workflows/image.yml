@@ -28,8 +28,8 @@ jobs:
     outputs:
       synapse_version: ${{ steps.version.outputs.SYNAPSE_VERSION }}
       s3_provider_version: ${{ steps.version.outputs.S3_PROVIDER_VERSION }}
-      policy_release: ${{ steps.policy.outputs.POLICY_RELEASE }}
-      policy_wheel_sha256: ${{ steps.policy.outputs.POLICY_WHEEL_SHA256 }}
+      policy_release: ${{ steps.version.outputs.POLICY_RELEASE }}
+      policy_wheel_sha256: ${{ steps.provenance.outputs.POLICY_WHEEL_SHA256 }}
       synapse_upstream_commit: ${{ steps.provenance.outputs.SYNAPSE_UPSTREAM_COMMIT }}
       synapse_fork_release: ${{ steps.provenance.outputs.SYNAPSE_FORK_RELEASE }}
       synapse_fork_commit: ${{ steps.provenance.outputs.SYNAPSE_FORK_COMMIT }}
@@ -72,7 +72,7 @@ jobs:
         run: PYTHONDONTWRITEBYTECODE=1 python3 .github/test_entrypoint.py
       - name: Run the offline provenance-lock tests
         run: PYTHONDONTWRITEBYTECODE=1 python3 .github/test_provenance.py
-      - name: Run the offline policy release-boundary tests
+      - name: Run the offline Controlplane release-boundary tests
         run: PYTHONDONTWRITEBYTECODE=1 python3 .github/test_prepare_inputs.py
       - name: Run the offline registry image verifier tests
         run: PYTHONDONTWRITEBYTECODE=1 python3 .github/test_verify_registry_image.py
@@ -99,11 +99,6 @@ jobs:
             *) echo "unsupported workflow ref: $GITHUB_REF" >&2; exit 2 ;;
           esac
           printf 'publish=%s\n' "$publish" >> "$GITHUB_OUTPUT"
-      - id: policy
-        name: Resolve the latest published stable policy release
-        run: |
-          set -euo pipefail
-          python3 .github/prepare_inputs.py --resolve-policy >> "$GITHUB_OUTPUT"
       - id: release
         name: Require the matching annotated release tag for publication
         if: steps.version.outputs.publish == 'true'

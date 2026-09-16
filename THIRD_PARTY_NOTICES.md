@@ -7,9 +7,9 @@ This project packages, but does not modify, the following third-party components
 - The provider's compatible build and base-image dependencies (including setuptools, psycopg2,
   PyYAML, Twisted, python-dateutil, six, and urllib3) remain governed by the exact Synapse base
   image's notices; this repository does not download replacement copies of those packages.
-- [synapse-s3-storage-provider](https://github.com/matrix-org/synapse-s3-storage-provider),
+- [synapse-s3-storage-provider](https://github.com/TeleCrypt-io/fork-synapse-s3-storage-provider),
   Apache License 2.0, pinned to the exact released version in `versions.env`.
-- [controlplane tier controller](https://github.com/TeleCrypt-io/controlplane), TeleCrypt BUSL-1.1
+- [control-plane tier controller](https://github.com/TeleCrypt-io/control-plane), TeleCrypt BUSL-1.1
   code, installed from the exact public release recorded in `versions.env`.
 - [boto3](https://pypi.org/project/boto3/1.43.78/), Apache-2.0, exact wheel recorded in
   `s3-provider.lock`.

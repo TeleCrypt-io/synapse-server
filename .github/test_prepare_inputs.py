@@ -30,7 +30,7 @@ DIGEST_ASSET = f"controlplane-{RELEASE}.digest.json"
 WHEEL_SHA = "f" * 64
 ANNOTATED_TAG_SHA = "a" * 40
 SOURCE_COMMIT = "b" * 40
-FORK_REPOSITORY = "TeleCrypt-io/synapse"
+FORK_REPOSITORY = "TeleCrypt-io/fork-synapse"
 FORK_RELEASE = "v1.159.0-telecrypt.1"
 FORK_ANNOTATED_TAG_SHA = "d" * 40
 FORK_SOURCE_COMMIT = "e" * 40
@@ -72,10 +72,10 @@ def asset(name: str, asset_id: int, size: int, digest: str) -> dict[str, object]
         "created_at": "2026-08-22T00:00:01Z",
         "updated_at": "2026-08-22T00:00:02Z",
         "url": (
-            f"https://api.github.com/repos/TeleCrypt-io/controlplane/releases/assets/{asset_id}"
+            f"https://api.github.com/repos/TeleCrypt-io/control-plane/releases/assets/{asset_id}"
         ),
         "browser_download_url": (
-            f"https://github.com/TeleCrypt-io/controlplane/releases/download/{RELEASE}/{name}"
+            f"https://github.com/TeleCrypt-io/control-plane/releases/download/{RELEASE}/{name}"
         ),
     }
 
@@ -91,12 +91,12 @@ def release_metadata() -> dict[str, object]:
         "body": f"Exact Controlplane release {RELEASE}.",
         "created_at": "2026-08-22T00:00:00Z",
         "published_at": "2026-08-23T00:00:00Z",
-        "url": "https://api.github.com/repos/TeleCrypt-io/controlplane/releases/42",
-        "assets_url": "https://api.github.com/repos/TeleCrypt-io/controlplane/releases/42/assets",
-        "upload_url": "https://uploads.github.com/repos/TeleCrypt-io/controlplane/releases/42/assets{?name,label}",
-        "html_url": f"https://github.com/TeleCrypt-io/controlplane/releases/tag/{RELEASE}",
-        "tarball_url": f"https://api.github.com/repos/TeleCrypt-io/controlplane/tarball/{RELEASE}",
-        "zipball_url": f"https://api.github.com/repos/TeleCrypt-io/controlplane/zipball/{RELEASE}",
+        "url": "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/42",
+        "assets_url": "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/42/assets",
+        "upload_url": "https://uploads.github.com/repos/TeleCrypt-io/control-plane/releases/42/assets{?name,label}",
+        "html_url": f"https://github.com/TeleCrypt-io/control-plane/releases/tag/{RELEASE}",
+        "tarball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/tarball/{RELEASE}",
+        "zipball_url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/zipball/{RELEASE}",
         "assets": [
             asset(WHEEL, 1, 7, WHEEL_SHA),
             asset(DIGEST_ASSET, 2, 128, "0" * 64),
@@ -155,14 +155,14 @@ class PrepareInputsTests(unittest.TestCase):
         ):
             root = Path(directory)
             prepare_inputs.download(
-                "https://api.github.com/repos/TeleCrypt-io/synapse/tarball/v1.0.0-telecrypt.1",
+                "https://api.github.com/repos/TeleCrypt-io/fork-synapse/tarball/v1.0.0-telecrypt.1",
                 root / "archive.tar.gz",
                 expected,
                 expected_host="api.github.com",
                 accept=prepare_inputs.GITHUB_API_ACCEPT,
             )
             prepare_inputs.download(
-                "https://github.com/TeleCrypt-io/controlplane/releases/download/1.0.0/input.whl",
+                "https://github.com/TeleCrypt-io/control-plane/releases/download/1.0.0/input.whl",
                 root / "input.whl",
                 expected,
             )
@@ -193,7 +193,7 @@ class PrepareInputsTests(unittest.TestCase):
                 prepare_inputs.URL_OPENER, "open", return_value=Response()
             ), self.assertRaises(SystemExit) as failure:
                 prepare_inputs.download(
-                    "https://github.com/TeleCrypt-io/synapse/archive.tar.gz",
+                    "https://github.com/TeleCrypt-io/fork-synapse/archive.tar.gz",
                     root / "archive.tar.gz",
                     "0" * 64,
                 )
@@ -219,7 +219,7 @@ class PrepareInputsTests(unittest.TestCase):
 
         body = FailingBody()
         error = HTTPError(
-            "https://api.github.com/repos/TeleCrypt-io/controlplane/releases/tags/0.4.0",
+            "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/tags/0.4.0",
             503,
             "service unavailable",
             hdrs=None,
@@ -228,7 +228,7 @@ class PrepareInputsTests(unittest.TestCase):
         with mock.patch.object(prepare_inputs.URL_OPENER, "open", side_effect=error):
             with self.assertRaises(SystemExit) as failure:
                 prepare_inputs.fetch_github_api(
-                    "TeleCrypt-io/controlplane", "releases/tags/0.4.0", "Controlplane"
+                    "TeleCrypt-io/control-plane", "releases/tags/0.4.0", "Controlplane"
                 )
         self.assertTrue(body.closed)
         message = str(failure.exception)
@@ -271,7 +271,7 @@ class PrepareInputsTests(unittest.TestCase):
 
         response_body = TrackingBody(b"github API failure body")
         error = HTTPError(
-            "https://api.github.com/repos/TeleCrypt-io/controlplane/releases/tags/0.4.0",
+            "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/tags/0.4.0",
             503,
             "service unavailable",
             hdrs=None,
@@ -280,13 +280,13 @@ class PrepareInputsTests(unittest.TestCase):
         with mock.patch.object(prepare_inputs.URL_OPENER, "open", side_effect=error):
             with self.assertRaises(SystemExit) as failure:
                 prepare_inputs.fetch_github_api(
-                    "TeleCrypt-io/controlplane", "releases/tags/0.4.0", "Controlplane"
+                    "TeleCrypt-io/control-plane", "releases/tags/0.4.0", "Controlplane"
                 )
         self.assertTrue(response_body.closed_by_fetch)
         self.assertIn("github API failure body", str(failure.exception))
 
     def test_github_api_preserves_malformed_body(self) -> None:
-        url = "https://api.github.com/repos/TeleCrypt-io/controlplane/releases/tags/0.4.0"
+        url = "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/tags/0.4.0"
         response = mock.MagicMock()
         response.__enter__.return_value = response
         response.__exit__.return_value = None
@@ -295,7 +295,7 @@ class PrepareInputsTests(unittest.TestCase):
         with mock.patch.object(prepare_inputs.URL_OPENER, "open", return_value=response):
             with self.assertRaises(SystemExit) as failure:
                 prepare_inputs.fetch_github_api(
-                    "TeleCrypt-io/controlplane", "releases/tags/0.4.0", "Controlplane"
+                    "TeleCrypt-io/control-plane", "releases/tags/0.4.0", "Controlplane"
                 )
         self.assertIn('{"release":', str(failure.exception))
 
@@ -362,8 +362,8 @@ class PrepareInputsTests(unittest.TestCase):
     def test_exact_release_metadata_contract_and_rejects_drift(self) -> None:
         metadata = release_metadata()
         for html_url in (
-            f"https://github.com/TeleCrypt-io/controlplane/releases/tag/{RELEASE}",
-            f"https://github.com/TeleCrypt-io/controlplane/releases/{RELEASE}",
+            f"https://github.com/TeleCrypt-io/control-plane/releases/tag/{RELEASE}",
+            f"https://github.com/TeleCrypt-io/control-plane/releases/{RELEASE}",
         ):
             prepare_inputs.validate_controlplane_release(
                 {**metadata, "html_url": html_url}, RELEASE
@@ -374,7 +374,7 @@ class PrepareInputsTests(unittest.TestCase):
             ("published_at", "2026-02-30T00:00:00Z"),
             ("published_at", "2026-08-23 00:00:00Z"),
             ("url", "https://api.github.com/other"),
-            ("html_url", "https://github.com/TeleCrypt-io/controlplane/releases/tag/other"),
+            ("html_url", "https://github.com/TeleCrypt-io/control-plane/releases/tag/other"),
         ):
             invalid = dict(metadata)
             invalid[field] = value
@@ -431,7 +431,7 @@ class PrepareInputsTests(unittest.TestCase):
                 ),
                 (
                     f"https://api.github.com/repos/{FORK_REPOSITORY}/tarball/{FORK_RELEASE}",
-                    f"TeleCrypt-io-synapse-{FORK_ANNOTATED_TAG_SHA[:7]}",
+                    f"TeleCrypt-io-fork-synapse-{FORK_ANNOTATED_TAG_SHA[:7]}",
                 ),
             )
         with mock.patch.object(
@@ -452,11 +452,11 @@ class PrepareInputsTests(unittest.TestCase):
             ("label", "unexpected"),
             (
                 "url",
-                "https://api.github.com/repos/TeleCrypt-io/controlplane/releases/assets/9",
+                "https://api.github.com/repos/TeleCrypt-io/control-plane/releases/assets/9",
             ),
             (
                 "url",
-                "https://user:password@api.github.com/repos/TeleCrypt-io/controlplane/releases/assets/1",
+                "https://user:password@api.github.com/repos/TeleCrypt-io/control-plane/releases/assets/1",
             ),
         ):
             metadata = release_metadata()
@@ -525,13 +525,13 @@ class PrepareInputsTests(unittest.TestCase):
             path.write_bytes(
                 archive(
                     [
-                        ("directory", "TeleCrypt-io-synapse-s3-storage-provider-d8bb991"),
-                        ("file", "TeleCrypt-io-synapse-s3-storage-provider-d8bb991/setup.py"),
+                        ("directory", "TeleCrypt-io-fork-synapse-s3-storage-provider-d8bb991"),
+                        ("file", "TeleCrypt-io-fork-synapse-s3-storage-provider-d8bb991/setup.py"),
                     ]
                 )
             )
             prepare_inputs.validate_provider_build_contract(
-                path, "TeleCrypt-io-synapse-s3-storage-provider-d8bb991"
+                path, "TeleCrypt-io-fork-synapse-s3-storage-provider-d8bb991"
             )
         for entries in invalid_entries:
             with tempfile.TemporaryDirectory() as directory:
@@ -974,21 +974,21 @@ class PrepareInputsTests(unittest.TestCase):
         responses = {
             f"git/ref/tags/{RELEASE}": {
                 "ref": f"refs/tags/{RELEASE}",
-                "url": f"https://api.github.com/repos/TeleCrypt-io/controlplane/git/refs/tags/{RELEASE}",
+                "url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/git/refs/tags/{RELEASE}",
                 "object": {
                     "type": "tag",
                     "sha": ANNOTATED_TAG_SHA,
-                    "url": f"https://api.github.com/repos/TeleCrypt-io/controlplane/git/tags/{ANNOTATED_TAG_SHA}",
+                    "url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/git/tags/{ANNOTATED_TAG_SHA}",
                 },
             },
             f"git/tags/{ANNOTATED_TAG_SHA}": {
                 "sha": ANNOTATED_TAG_SHA,
                 "tag": RELEASE,
-                "url": f"https://api.github.com/repos/TeleCrypt-io/controlplane/git/tags/{ANNOTATED_TAG_SHA}",
+                "url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/git/tags/{ANNOTATED_TAG_SHA}",
                 "object": {
                     "type": "commit",
                     "sha": SOURCE_COMMIT,
-                    "url": f"https://api.github.com/repos/TeleCrypt-io/controlplane/git/commits/{SOURCE_COMMIT}",
+                    "url": f"https://api.github.com/repos/TeleCrypt-io/control-plane/git/commits/{SOURCE_COMMIT}",
                 },
             },
         }

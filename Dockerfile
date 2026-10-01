@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
-# Build only in GitHub Actions. The server pulls an exact published tag; it never builds this image.
+# Build manually on the operator build host. The server pulls an exact published tag; it never builds this image.
 ARG SYNAPSE_BASE_REF=ghcr.io/element-hq/synapse:v0.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
 FROM ${SYNAPSE_BASE_REF} AS runtime
 
 # The media behavior is carried by exact TeleCrypt fork source archives. The
 # upstream base tags and fork commits are locked outside this Dockerfile and
-# supplied only by the verified GitHub Actions inputs.
+# supplied only by the verified operator release inputs.
 ARG SYNAPSE_BASE_REF
 ARG SYNAPSE_VERSION
 ARG SYNAPSE_BASE_DIGEST
